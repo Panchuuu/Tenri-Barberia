@@ -13,7 +13,7 @@ class UsuarioSeeder extends Seeder
         // Creamos al Administrador
         User::create([
             'name' => 'Panchuuu Admin',
-            'email' => 'admin@atlas.cl',
+            'email' => 'admin@tenri.cl',
             'password' => Hash::make('admin123'), // Siempre encriptada
             'rol' => 'admin'
         ]);
@@ -21,7 +21,7 @@ class UsuarioSeeder extends Seeder
         // Creamos a un Barbero de prueba
         User::create([
             'name' => 'Juan el Barbero',
-            'email' => 'juan@atlas.cl',
+            'email' => 'juan@tenri.cl',
             'password' => Hash::make('barbero123'),
             'rol' => 'barbero'
         ]);

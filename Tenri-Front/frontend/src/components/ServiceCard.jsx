@@ -1,42 +1,44 @@
 import React from 'react';
 
 export default function ServiceCard({ servicio, onAgendar }) {
+  const precioFormateado = new Intl.NumberFormat('es-CL', {
+    style: 'currency',
+    currency: 'CLP',
+  }).format(servicio.precio);
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 hover:border-cyan-500/50 hover:shadow-2xl hover:shadow-cyan-900/20 transition-all duration-300 flex flex-col group relative overflow-hidden">
+    <div className="bg-white border border-slate-200 dark:bg-[#0B1221] dark:border-slate-800/60 rounded-2xl p-6 flex flex-col justify-between shadow-lg hover:shadow-xl dark:shadow-none hover:border-emerald-500/50 dark:hover:border-emerald-500/30 transition-all group">
       
-      {/* Línea de acento corporativo que aparece al hacer hover */}
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-      
-      <div className="flex items-start justify-between mb-6">
-        {/* Ícono del servicio */}
-        <div className="w-14 h-14 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
-          💈
+      <div>
+        <div className="flex justify-between items-start mb-4">
+          <div className="w-12 h-12 bg-slate-50 border border-slate-100 dark:bg-[#03070e] dark:border-slate-700/50 rounded-xl flex items-center justify-center text-2xl shadow-sm dark:shadow-inner group-hover:scale-110 transition-transform">
+            ✂️
+          </div>
+          <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 font-bold px-3 py-1 rounded-md text-xs uppercase tracking-wider transition-colors">
+            {servicio.duracion} min
+          </span>
         </div>
-        {/* Etiqueta (Si en el futuro agregas 'duracion' a tu BD, puedes cambiar este texto) */}
-        <span className="bg-slate-800 text-slate-300 text-xs px-3 py-1 rounded-full font-medium border border-slate-700">
-          Servicio Premium
-        </span>
+
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 transition-colors">{servicio.nombre}</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-6 transition-colors">
+          {servicio.descripcion || 'Servicio profesional de barbería con atención personalizada y productos de primera calidad.'}
+        </p>
       </div>
 
-      <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">
-        {servicio.nombre}
-      </h3>
-      
-      <p className="text-slate-400 text-sm mb-8 flex-1">
-        Atención personalizada con los mejores estándares de calidad y estilo para ti.
-      </p>
-
-      <div className="flex items-center justify-between mt-auto">
-        <span className="text-3xl font-extrabold text-white font-mono tracking-tight">
-          ${Number(servicio.precio).toLocaleString('es-CL')}
-        </span>
+      <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between transition-colors">
+        <div>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mb-1 transition-colors">Valor Final</p>
+          <p className="text-2xl font-black text-slate-900 dark:text-white transition-colors">{precioFormateado}</p>
+        </div>
+        
         <button 
           onClick={() => onAgendar(servicio)}
-          className="bg-transparent border-2 border-cyan-600 text-cyan-400 hover:bg-cyan-600 hover:text-white px-6 py-2.5 rounded-xl font-bold active:scale-95 transition-all"
+          className="bg-emerald-500 hover:bg-emerald-600 text-white dark:text-[#03070e] dark:hover:bg-emerald-400 font-bold px-6 py-3 rounded-lg transition-all shadow-md dark:shadow-lg dark:shadow-emerald-900/20 active:scale-95"
         >
           Agendar
         </button>
       </div>
+      
     </div>
   );
 }

@@ -21,7 +21,7 @@ class AuthController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'rol' => 'cliente' // Por defecto todos son clientes
+            'rol' => 'cliente' //
         ]);
 
         // Creamos un token de acceso para este usuario
