@@ -11,7 +11,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'rol'])]
+// 👇 AQUÍ ESTÁ EL CAMBIO: Agregamos las nuevas columnas permitidas
+#[Fillable(['name', 'email', 'password', 'rol', 'avatar', 'hora_inicio', 'hora_fin', 'barberia_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {

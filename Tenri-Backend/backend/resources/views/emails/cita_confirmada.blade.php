@@ -6,7 +6,6 @@
 </head>
 <body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 20px;">
     
-    <!-- Contenedor Principal -->
     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
         
         <!-- Cabecera -->
@@ -25,7 +24,6 @@
                 ¡Tu reserva ha sido confirmada exitosamente! Estamos listos para elevar tu estilo.
             </p>
             
-            <!-- Tarjeta de Resumen -->
             <div style="background-color: #f1f5f9; border-left: 4px solid #10b981; padding: 20px; border-radius: 4px; margin: 25px 0;">
                 <p style="margin: 8px 0; color: #0f172a; font-weight: bold; font-size: 15px;">
                     🗓️ Fecha: <span style="font-weight: normal; color: #475569;">{{ $cita->fecha }}</span>
@@ -41,12 +39,20 @@
                 </p>
             </div>
 
-            <p style="font-size: 14px; line-height: 1.6; color: #64748b;">
-                Te recordamos llegar con 5 minutos de anticipación. Si necesitas cancelar, por favor contáctanos con antelación.
-            </p>
-            <p style="font-size: 16px; font-weight: bold; color: #0f172a;">
-                ¡Te esperamos!
-            </p>
+            <!-- SECCIÓN DE CANCELACIÓN (NUEVO) -->
+            <div style="text-align: center; margin-top: 35px; padding-top: 25px; border-top: 1px dashed #cbd5e1;">
+                <p style="font-size: 14px; color: #64748b; margin-bottom: 15px;">¿Surgió un imprevisto?</p>
+                
+                <!-- Este botón lleva a tu frontend de React donde el cliente puede gestionar sus citas -->
+                <a href="http://localhost:5173/" style="background-color: #e11d48; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 14px;">
+                    Gestionar o Cancelar Reserva
+                </a>
+                
+                <p style="font-size: 12px; color: #94a3b8; margin-top: 15px; font-style: italic;">
+                    * Política de la empresa: Solo puedes cancelar hasta 30 minutos antes de tu hora agendada. Pasado este tiempo, la reserva se asume como 100% confirmada.
+                </p>
+            </div>
+
         </div>
         
         <!-- Pie de página -->
