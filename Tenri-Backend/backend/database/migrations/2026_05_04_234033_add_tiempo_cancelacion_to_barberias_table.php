@@ -6,18 +6,18 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up(): void
     {
         Schema::table('barberias', function (Blueprint $table) {
-            // Agregamos la columna 'logo', que puede estar vacía (nullable)
-            $table->string('logo')->nullable()->after('color_principal');
+            // Agregamos el tiempo en minutos. Por defecto le pondremos 60 minutos (1 hora).
+            $table->integer('tiempo_cancelacion')->default(60);
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::table('barberias', function (Blueprint $table) {
-            $table->dropColumn('logo');
+            $table->dropColumn('tiempo_cancelacion');
         });
     }
 };

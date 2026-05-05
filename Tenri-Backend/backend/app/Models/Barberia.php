@@ -10,7 +10,7 @@ class Barberia extends Model
     use HasFactory;
 
     // 1. Agregamos 'logo' a los campos permitidos
-    protected $fillable = ['nombre', 'slug', 'color_principal', 'logo'];
+    protected $fillable = ['nombre', 'slug', 'color_principal', 'logo', 'tiempo_cancelacion'];
 
     // 2. Le decimos a Laravel que SIEMPRE envíe este campo inventado llamado 'logo_url'
     protected $appends = ['logo_url'];

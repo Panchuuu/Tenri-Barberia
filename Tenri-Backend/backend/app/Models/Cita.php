@@ -6,7 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Cita extends Model
 {
-    protected $fillable = ['cliente_id', 'barbero_id', 'servicio_id', 'fecha', 'hora', 'estado', 'barberia_id'];
+    protected $fillable = ['cliente_id', 'barbero_id', 'servicio_id', 'fecha', 'hora', 'estado', 'barberia_id', 'calificacion',
+    'comentario'];
+
+    public function barberia()
+    {
+        return $this->belongsTo(Barberia::class);
+    }
 
     // Relación: Una cita pertenece a un Cliente (User)
     public function cliente() {

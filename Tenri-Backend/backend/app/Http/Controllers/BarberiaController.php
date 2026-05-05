@@ -58,4 +58,29 @@ class BarberiaController extends Controller
             'barberia' => $barberia
         ], 201);
     }
+
+    // Obtiene la información de la barbería del admin logueado
+    public function miBarberia(Request $request)
+    {
+        $barberia = \App\Models\Barberia::findOrFail($request->user()->barberia_id);
+        return response()->json($barberia);
+    }
+
+    // Actualiza la configuración de la barbería
+    public function updateConfig(Request $request)
+    {
+        $request->validate([
+            'tiempo_cancelacion' => 'required|integer|min:0'
+        ]);
+
+        $barberia = \App\Models\Barberia::findOrFail($request->user()->barberia_id);
+        
+        $barberia->tiempo_cancelacion = $request->tiempo_cancelacion;
+        $barberia->save();
+
+        return response()->json([
+            'mensaje' => 'Configuración actualizada correctamente', 
+            'barberia' => $barberia
+        ]);
+    }
 }

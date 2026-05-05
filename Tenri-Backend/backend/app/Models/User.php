@@ -18,7 +18,7 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
-
+    
     /**
      * Get the attributes that should be cast.
      *
@@ -30,5 +30,23 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    protected $appends = ['promedio_calificacion']; 
+
+    // Relación: Un usuario (barbero) tiene muchas citas como trabajador
+    public function citasAtendidas()
+    {
+        return $this->hasMany(Cita::class, 'barbero_id');
+    }
+
+    // Calcula el promedio de estrellas automáticamente
+    public function getPromedioCalificacionAttribute()
+    {
+        // Solo calculamos el promedio de citas que tienen calificación
+        $promedio = $this->citasAtendidas()->whereNotNull('calificacion')->avg('calificacion');
+        
+        // Lo redondeamos a 1 decimal (ej. 4.8). Si no tiene reseñas, devolvemos 0
+        return $promedio ? round($promedio, 1) : 0; 
     }
 }

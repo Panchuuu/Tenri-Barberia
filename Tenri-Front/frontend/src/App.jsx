@@ -7,6 +7,7 @@ import MisReservasModal from "./components/MisReservasModal";
 import Login from "./components/Login";
 import AdminDashboard from "./components/AdminDashboard";
 import MisReservas from "./components/MisReservas";
+import SkeletonCard from "./components/SkeletonCard";
 import BarberoDashboard from "./components/BarberoDashboard";
 
 export default function App() {
@@ -14,19 +15,40 @@ export default function App() {
   // 1. ESTADOS DE DATOS Y AUTENTICACIÓN
   // ==========================================
   const [barberias, setBarberias] = useState([]);
-  const [barberiaSeleccionada, setBarberiaSeleccionada] = useState(null); // Guarda el slug
+  
+  // Guardamos la barbería a la que el cliente le hace clic. 
+  // Si es null, mostramos la lista de barberías. Si tiene datos, mostramos los servicios de ESA barbería.
+  const [barberiaSeleccionada, setBarberiaSeleccionada] = useState(null); 
   const [servicios, setServicios] = useState([]);
+  
+  // Controla la visibilidad de los "SkeletonCard" mientras el fetch está descargando datos
   const [cargando, setCargando] = useState(true);
   
+  // Lo que el usuario escribe en la barra de búsqueda superior
+  const [busqueda, setBusqueda] = useState("");
+  
+  // Filtro de búsqueda seguro (evita crasheos de pantalla en blanco al usar ?.)
+  // Compara el nombre de cada barbería con lo que hay en "busqueda"
+  const barberiasFiltradas = barberias?.filter((b) =>
+    b?.nombre?.toLowerCase().includes(busqueda?.toLowerCase() || "")
+  ) || [];
+
+  // Cuando el cliente hace clic en un servicio, lo guardamos aquí para abrir el Modal de Reserva
   const [servicioSeleccionado, setServicioSeleccionado] = useState(null);
+  
+  // Controla si se muestra el modal flotante de Login
   const [mostrarLogin, setMostrarLogin] = useState(false);
+  
+  // Leemos el localStorage al cargar la app para ver si el usuario ya había iniciado sesión antes
   const [usuario, setUsuario] = useState(() => {
     const userGuardado = localStorage.getItem("user");
     return userGuardado ? JSON.parse(userGuardado) : null;
   });
-  
-  // Vistas principales: "tienda" (pública), "dashboard", "barbero-dashboard", etc.
+
+  // Controla QUÉ PANTALLA COMPLETA se está renderizando (tienda, dashboard, barbero-dashboard, mis-reservas)
   const [vistaActual, setVistaActual] = useState("tienda");
+  
+  // Modal antiguo o vista modal de reservas (Si prefieres usar la vista completa, este estado podría no usarse)
   const [mostrarMisReservas, setMostrarMisReservas] = useState(false);
 
   // ==========================================
@@ -49,8 +71,8 @@ export default function App() {
   // ==========================================
   // 3. CARGA DE DATOS (BARBERÍAS Y SERVICIOS)
   // ==========================================
-  
-  // A. Al iniciar la app, cargamos el directorio de TODAS las barberías
+
+  // A. Carga inicial: Trae todas las barberías de la base de datos
   useEffect(() => {
     const obtenerBarberias = async () => {
       setCargando(true);
@@ -63,22 +85,22 @@ export default function App() {
         setCargando(false);
       }
     };
-    
+
     // Solo cargamos barberías si estamos en la vista principal y no hemos seleccionado ninguna
     if (vistaActual === "tienda" && !barberiaSeleccionada) {
       obtenerBarberias();
     }
   }, [vistaActual, barberiaSeleccionada]);
 
-  // B. Cuando el usuario hace clic en una barbería, cargamos SUS servicios
+  // B. Cuando el usuario hace clic en una barbería, cargamos SUS servicios específicos
   useEffect(() => {
     const obtenerServicios = async () => {
       if (!barberiaSeleccionada) return;
-      
+
       setCargando(true);
       try {
         const respuesta = await fetch(
-          `http://127.0.0.1:8000/api/servicios?barberia=${barberiaSeleccionada.slug}`
+          `http://127.0.0.1:8000/api/servicios?barberia=${barberiaSeleccionada.slug}`,
         );
         if (respuesta.ok) setServicios(await respuesta.json());
       } catch (error) {
@@ -94,11 +116,15 @@ export default function App() {
   // ==========================================
   // 4. LÓGICA DE NAVEGACIÓN Y LOGOUT
   // ==========================================
+  
+  // Limpia la barbería seleccionada para regresar a la lista general
   const handleVolverAlDirectorio = () => {
     setBarberiaSeleccionada(null);
     setServicios([]);
+    setBusqueda(""); // Limpiamos la búsqueda al volver
   };
 
+  // Cierra la sesión borrando los datos del navegador
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -106,7 +132,7 @@ export default function App() {
     setVistaActual("tienda");
   };
 
-  // Íconos SVG
+  // Íconos SVG (Logout, Sol y Luna)
   const LogOutIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -150,7 +176,9 @@ export default function App() {
         }}
       />
 
-      {/* VISTAS PRIVADAS (ADMIN / BARBERO / CLIENTE / SUPERADMIN) */}
+      {/* ========================================================================= */}
+      {/* VISTAS PRIVADAS: Renderiza el componente correcto según "vistaActual"     */}
+      {/* ========================================================================= */}
       {vistaActual === "superadmin-dashboard" && (
         <SuperAdminDashboard usuario={usuario} onVolver={() => setVistaActual("tienda")} />
       )}
@@ -164,26 +192,32 @@ export default function App() {
         <MisReservas usuario={usuario} onVolver={() => setVistaActual("tienda")} />
       )}
 
-      {/* VISTA PÚBLICA (DIRECTORIO O CATÁLOGO DE SERVICIOS) */}
+      {/* ========================================================================= */}
+      {/* VISTA PÚBLICA (DIRECTORIO O CATÁLOGO DE SERVICIOS)                        */}
+      {/* ========================================================================= */}
       {vistaActual === "tienda" && (
         <div className="animate-fade-in flex flex-col min-h-screen">
+          
           {/* NAVBAR GENERAL */}
           <nav className="fixed top-0 w-full z-40 bg-white/80 border-b border-slate-200 dark:bg-[#03070e]/80 dark:border-slate-800/50 backdrop-blur-md transition-colors duration-300">
             <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
               
               {/* LOGO DINÁMICO */}
-              <div 
+              <div
                 className="font-black text-2xl tracking-widest text-slate-900 dark:text-white flex items-center gap-2 transition-colors cursor-pointer"
                 onClick={handleVolverAlDirectorio}
                 title="Volver al inicio"
               >
                 {barberiaSeleccionada ? (
                   <>
-                    <span className="text-emerald-500 mr-2">←</span> 
+                    <span className="text-emerald-500 mr-2">←</span>
                     {barberiaSeleccionada.nombre}
                   </>
                 ) : (
-                  <>TENRI <span className="text-emerald-500 dark:text-emerald-400">BOOKING</span></>
+                  <>
+                    TENRI{" "}
+                    <span className="text-emerald-500 dark:text-emerald-400">BOOKING</span>
+                  </>
                 )}
               </div>
 
@@ -197,37 +231,59 @@ export default function App() {
                 {usuario ? (
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-medium text-slate-600 dark:text-slate-400 hidden md:block">
-                      Hola, <span className="text-slate-900 dark:text-white">{usuario.name}</span>
+                      Hola,{" "}
+                      <span className="text-slate-900 dark:text-white">
+                        {usuario.name}
+                      </span>
                     </span>
 
-                    {/* Botones según Rol */} 
+                    {/* Botones de navegación dependiendo del Rol del Usuario */}
                     {usuario.rol === "superadmin" && (
-                      <button onClick={() => setVistaActual("superadmin-dashboard")} className="px-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/30 hover:bg-amber-500/20 dark:bg-[#1a1309] dark:hover:bg-[#261c0d] text-sm font-bold rounded-lg transition-all shadow-[0_0_10px_rgba(245,158,11,0.1)]">
+                      <button
+                        onClick={() => setVistaActual("superadmin-dashboard")}
+                        className="px-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/30 hover:bg-amber-500/20 dark:bg-[#1a1309] dark:hover:bg-[#261c0d] text-sm font-bold rounded-lg transition-all shadow-[0_0_10px_rgba(245,158,11,0.1)]"
+                      >
                         👑 TENRI MASTER
                       </button>
                     )}
                     {usuario.rol === "admin" && (
-                      <button onClick={() => setVistaActual("dashboard")} className="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-[#0f1b29] dark:text-emerald-400 dark:border-emerald-500/20 dark:hover:bg-[#152538] text-sm font-bold rounded-lg transition-all">
+                      <button
+                        onClick={() => setVistaActual("dashboard")}
+                        className="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-[#0f1b29] dark:text-emerald-400 dark:border-emerald-500/20 dark:hover:bg-[#152538] text-sm font-bold rounded-lg transition-all"
+                      >
                         ⚙️ Panel Admin
                       </button>
                     )}
                     {usuario.rol === "barbero" && (
-                      <button onClick={() => setVistaActual("barbero-dashboard")} className="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-[#0f1b29] dark:text-emerald-400 dark:border-emerald-500/20 dark:hover:bg-[#152538] text-sm font-bold rounded-lg transition-all">
+                      <button
+                        onClick={() => setVistaActual("barbero-dashboard")}
+                        className="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-[#0f1b29] dark:text-emerald-400 dark:border-emerald-500/20 dark:hover:bg-[#152538] text-sm font-bold rounded-lg transition-all"
+                      >
                         📅 Mi Agenda
                       </button>
                     )}
                     {usuario.rol === "cliente" && (
-                      <button onClick={() => setMostrarMisReservas(true)} className="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-[#0f1b29] dark:text-emerald-400 dark:border-emerald-500/20 dark:hover:bg-[#152538] text-sm font-bold rounded-lg transition-all shadow-sm">
+                      <button
+                        onClick={() => setVistaActual("mis-reservas")} // 👈 Ajuste: ahora va directo a la vista completa, no al modal
+                        className="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 dark:bg-[#0f1b29] dark:text-emerald-400 dark:border-emerald-500/20 dark:hover:bg-[#152538] text-sm font-bold rounded-lg transition-all shadow-sm"
+                      >
                         👤 Mis Reservas
                       </button>
                     )}
 
-                    <button onClick={handleLogout} className="ml-2 text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 p-2 transition-colors" title="Cerrar Sesión">
+                    <button
+                      onClick={handleLogout}
+                      className="ml-2 text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 p-2 transition-colors"
+                      title="Cerrar Sesión"
+                    >
                       <LogOutIcon />
                     </button>
                   </div>
                 ) : (
-                  <button onClick={() => setMostrarLogin(true)} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white dark:text-[#03070e] dark:hover:bg-emerald-400 text-sm font-black rounded-xl transition-all shadow-md">
+                  <button
+                    onClick={() => setMostrarLogin(true)}
+                    className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white dark:text-[#03070e] dark:hover:bg-emerald-400 text-sm font-black rounded-xl transition-all shadow-md"
+                  >
                     Iniciar Sesión
                   </button>
                 )}
@@ -238,7 +294,7 @@ export default function App() {
           {/* ========================================================= */}
           {/* CONDICIONAL: ¿MOSTRAR DIRECTORIO O CATÁLOGO DE SERVICIOS? */}
           {/* ========================================================= */}
-          
+
           {!barberiaSeleccionada ? (
             /* --- VISTA 1: DIRECTORIO DE BARBERÍAS (MARKETPLACE) --- */
             <>
@@ -255,36 +311,64 @@ export default function App() {
                     </span>
                   </h1>
                   <p className="text-slate-600 dark:text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-medium transition-colors">
-                    Explora nuestra red de barberías y centros de estética premium.
+                    Explora nuestra red de barberías y centros de estética
+                    premium.
                   </p>
+
+                  {/* BUSCADOR CORREGIDO EN POSICIÓN Y DISEÑO */}
+                  <div className="relative max-w-md mx-auto mt-8 z-20">
+                    <input
+                      type="text"
+                      placeholder="Buscar barbería..."
+                      className="w-full px-6 py-3.5 rounded-xl bg-white/90 dark:bg-[#0B1221]/90 border border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-sm text-slate-900 dark:text-white backdrop-blur-sm"
+                      value={busqueda}
+                      onChange={(e) => setBusqueda(e.target.value)}
+                    />
+                  </div>
                 </div>
               </header>
 
               <main className="flex-1 max-w-7xl mx-auto px-6 pb-32 relative z-10 w-full">
                 {cargando ? (
-                  <div className="flex flex-col items-center justify-center py-20">
-                    <div className="w-12 h-12 border-4 border-slate-200 border-t-emerald-500 dark:border-slate-800 rounded-full animate-spin mb-4"></div>
+                  // Si estamos haciendo fetch, mostramos los Skeletons
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <SkeletonCard key={n} />
+                    ))}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {barberias.map((barberia) => (
-                      <div 
-                        key={barberia.id} 
+                    {/* USO DE LA VARIABLE FILTRADA PARA QUE LA BÚSQUEDA FUNCIONE */}
+                    {barberiasFiltradas.map((barberia) => (
+                      <div
+                        key={barberia.id}
                         onClick={() => setBarberiaSeleccionada(barberia)}
                         className="group bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800/60 rounded-2xl p-8 hover:border-emerald-500 dark:hover:border-emerald-500/50 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center text-center"
                       >
                         {/* CONTENEDOR DEL LOGO EN EL DIRECTORIO */}
-                        <div 
+                        <div
                           className="w-24 h-24 rounded-2xl flex items-center justify-center mb-6 shadow-inner overflow-hidden border border-slate-200 dark:border-slate-800/80 transition-all"
-                          style={{ backgroundColor: barberia.logo_url ? '#ffffff' : (barberia.color_principal || '#10b981') }}
+                          style={{
+                            backgroundColor: barberia.logo_url
+                              ? "#ffffff"
+                              : barberia.color_principal || "#10b981",
+                          }}
                         >
                           {barberia.logo_url ? (
-                            <img src={barberia.logo_url} alt={barberia.nombre} className="w-full h-full object-cover" />
+                            <img
+                              src={barberia.logo_url}
+                              alt={barberia.nombre}
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
-                            <span className="text-white font-black text-3xl">{barberia.nombre.substring(0, 1).toUpperCase()}</span>
+                            <span className="text-white font-black text-3xl">
+                              {barberia.nombre.substring(0, 1).toUpperCase()}
+                            </span>
                           )}
                         </div>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{barberia.nombre}</h3>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                          {barberia.nombre}
+                        </h3>
                         <p className="text-slate-500 dark:text-slate-400 text-sm font-medium group-hover:text-emerald-500 transition-colors">
                           Ver servicios →
                         </p>
@@ -299,19 +383,30 @@ export default function App() {
             <>
               <header className="max-w-7xl mx-auto px-6 pt-40 pb-16 relative text-center w-full">
                 <div className="relative z-10 flex flex-col items-center">
-                  
                   {/* CONTENEDOR DEL LOGO EN EL HEADER DE LA BARBERÍA */}
-                  <div 
+                  <div
                     className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6 shadow-lg overflow-hidden border border-slate-200 dark:border-slate-700/50"
-                    style={{ backgroundColor: barberiaSeleccionada.logo_url ? '#ffffff' : (barberiaSeleccionada.color_principal || '#10b981') }}
+                    style={{
+                      backgroundColor: barberiaSeleccionada.logo_url
+                        ? "#ffffff"
+                        : barberiaSeleccionada.color_principal || "#10b981",
+                    }}
                   >
                     {barberiaSeleccionada.logo_url ? (
-                      <img src={barberiaSeleccionada.logo_url} alt={barberiaSeleccionada.nombre} className="w-full h-full object-cover" />
+                      <img
+                        src={barberiaSeleccionada.logo_url}
+                        alt={barberiaSeleccionada.nombre}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
-                      <span className="text-white font-black text-2xl">{barberiaSeleccionada.nombre.substring(0, 1).toUpperCase()}</span>
+                      <span className="text-white font-black text-2xl">
+                        {barberiaSeleccionada.nombre
+                          .substring(0, 1)
+                          .toUpperCase()}
+                      </span>
                     )}
                   </div>
-                  
+
                   <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-4 transition-colors">
                     {barberiaSeleccionada.nombre}
                   </h1>
@@ -332,7 +427,7 @@ export default function App() {
                       <ServiceCard
                         key={servicio.id}
                         servicio={servicio}
-                        onAgendar={setServicioSeleccionado}
+                        onAgendar={setServicioSeleccionado} // Abre el modal de Booking
                       />
                     ))}
                   </div>
@@ -344,13 +439,16 @@ export default function App() {
           {/* FOOTER */}
           <footer className="border-t border-slate-200 dark:border-slate-800/50 py-10 text-center bg-white/50 dark:bg-[#03070e]/50 mt-auto transition-colors">
             <p className="text-slate-500 text-sm font-medium">
-              © {new Date().getFullYear()} TENRI SPA. Todos los derechos reservados.
+              © {new Date().getFullYear()} TENRI SPA. Todos los derechos
+              reservados.
             </p>
           </footer>
         </div>
       )}
 
       {/* MODALES FLOTANTES */}
+      
+      {/* 1. Modal para agendar una cita */}
       {servicioSeleccionado && barberiaSeleccionada && (
         <BookingModal
           servicio={servicioSeleccionado}
@@ -358,6 +456,8 @@ export default function App() {
           onClose={() => setServicioSeleccionado(null)}
         />
       )}
+      
+      {/* 2. Modal de Login */}
       {mostrarLogin && (
         <Login
           onClose={() => setMostrarLogin(false)}
@@ -367,6 +467,8 @@ export default function App() {
           }}
         />
       )}
+      
+      {/* 3. Modal antiguo de Mis Reservas (por si lo sigues usando) */}
       {mostrarMisReservas && (
         <MisReservasModal onClose={() => setMostrarMisReservas(false)} />
       )}

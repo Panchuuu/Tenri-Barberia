@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 
 export default function AdminDashboard({ usuario, onVolver }) {
-  // Pestañas disponibles: 'agenda', 'historial', 'roles', 'servicios'
+  // Pestañas disponibles: 'agenda', 'historial', 'roles', 'servicios', 'configuracion'
   const [tabActiva, setTabActiva] = useState("agenda");
 
   // Estados para Usuarios/Barberos
@@ -28,6 +28,9 @@ export default function AdminDashboard({ usuario, onVolver }) {
   const [barberos, setBarberos] = useState([]);
   const [citas, setCitas] = useState([]);
   const [finanzas, setFinanzas] = useState(null);
+  
+  // Estado para la configuración de la barbería
+  const [configBarberia, setConfigBarberia] = useState({ tiempo_cancelacion: 60 });
 
   // Estado para el Modal de Confirmación personalizado
   const [modalConfirm, setModalConfirm] = useState({
@@ -63,8 +66,62 @@ export default function AdminDashboard({ usuario, onVolver }) {
         "http://127.0.0.1:8000/api/servicios?barberia=tenri-barber",
       );
       if (resS.ok) setServicios(await resS.json());
+
+      // Cargamos la configuración actual de la barbería
+      const resConf = await fetch("http://127.0.0.1:8000/api/mi-barberia", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resConf.ok) {
+        const dataConf = await resConf.json();
+        setConfigBarberia({ tiempo_cancelacion: dataConf.tiempo_cancelacion });
+      }
+
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // ==========================================
+  // HELPERS MATEMÁTICOS PARA EL WIDGET DE TIEMPO
+  // ==========================================
+  const diasCancelacion = Math.floor(configBarberia.tiempo_cancelacion / 1440);
+  const horasCancelacion = Math.floor((configBarberia.tiempo_cancelacion % 1440) / 60);
+  const minutosCancelacion = configBarberia.tiempo_cancelacion % 60;
+
+  const actualizarTiempoCancelacion = (d, h, m) => {
+    // Calculamos el total de minutos. Si da negativo, lo dejamos en 0.
+    let total = (d * 1440) + (h * 60) + m;
+    if (total < 0) total = 0;
+    setConfigBarberia({ ...configBarberia, tiempo_cancelacion: total });
+  };
+
+  // ==========================================
+  // GESTIÓN DE CONFIGURACIÓN DE LA BARBERÍA
+  // ==========================================
+  const handleGuardarConfiguracion = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem("token");
+    
+    try {
+      const respuesta = await fetch("http://127.0.0.1:8000/api/mi-barberia", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ tiempo_cancelacion: configBarberia.tiempo_cancelacion })
+      });
+
+      if (respuesta.ok) {
+        toast.success("Reglas de cancelación actualizadas");
+        await cargarDatos();
+      } else {
+        toast.error("Error al actualizar configuración");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Error de conexión");
     }
   };
 
@@ -82,19 +139,16 @@ export default function AdminDashboard({ usuario, onVolver }) {
     // Siempre usamos POST, pero le decimos a Laravel que lo trate como PUT.
     const metodo = "POST";
 
-    // Creamos un "paquete" especial que soporta archivos (FormData)
     const formData = new FormData();
     formData.append("nombre", formServicio.nombre);
     formData.append("precio", formServicio.precio);
     formData.append("duracion", formServicio.duracion);
     formData.append("descripcion", formServicio.descripcion || "");
 
-    // Si adjuntamos un archivo de imagen, lo metemos al paquete
     if (formServicio.imagen_archivo) {
       formData.append("imagen", formServicio.imagen_archivo);
     }
 
-    // Si estamos editando, inyectamos el método PUT artificialmente para Laravel
     if (editandoServicioId) {
       formData.append("_method", "PUT");
     }
@@ -120,7 +174,6 @@ export default function AdminDashboard({ usuario, onVolver }) {
         setEditandoServicioId(null);
         await cargarDatos();
 
-        // 🎉 Disparamos la notificación de éxito
         toast.success(
           editandoServicioId
             ? "Servicio actualizado correctamente"
@@ -130,7 +183,6 @@ export default function AdminDashboard({ usuario, onVolver }) {
         const errorData = await resp.json();
         console.error("Detalles del rechazo:", errorData);
 
-        // 🚨 Analizamos el error para mostrar un mensaje más amigable
         let mensajeError = "Ocurrió un error al guardar";
 
         if (errorData.errors && errorData.errors.imagen) {
@@ -139,7 +191,6 @@ export default function AdminDashboard({ usuario, onVolver }) {
           mensajeError = "Revisa los datos ingresados.";
         }
 
-        // Disparamos la notificación de error
         toast.error(mensajeError);
       }
     } catch (e) {
@@ -148,7 +199,6 @@ export default function AdminDashboard({ usuario, onVolver }) {
     }
   };
 
-  // 1. ELIMINAR SERVICIO (Con modal bonito)
   const confirmarEliminarServicio = (id) => {
     setModalConfirm({
       abierto: true,
@@ -223,7 +273,6 @@ export default function AdminDashboard({ usuario, onVolver }) {
     }
   };
 
-  // 2. ELIMINAR BARBERO (Con modal bonito)
   const confirmarEliminarBarbero = (id) => {
     setModalConfirm({
       abierto: true,
@@ -350,6 +399,14 @@ export default function AdminDashboard({ usuario, onVolver }) {
             >
               Administración Equipo
             </button>
+
+            {/* 👇 NUEVA PESTAÑA: AJUSTES DE NEGOCIO 👇 */}
+            <button
+              onClick={() => setTabActiva("configuracion")}
+              className={`w-full text-left px-5 py-3 rounded-lg ${tabActiva === "configuracion" ? "bg-[#0f1b29] text-emerald-400" : "text-slate-400 hover:bg-slate-800/30"}`}
+            >
+              Ajustes de Negocio
+            </button>
           </nav>
         </div>
 
@@ -389,6 +446,7 @@ export default function AdminDashboard({ usuario, onVolver }) {
             {tabActiva === "agenda" && "Panel Principal"}
             {tabActiva === "servicios" && "Gestión de Servicios"}
             {tabActiva === "roles" && "Gestión de Equipo"}
+            {tabActiva === "configuracion" && "Ajustes de Negocio"}
           </h2>
           <button
             onClick={onVolver}
@@ -399,6 +457,68 @@ export default function AdminDashboard({ usuario, onVolver }) {
         </header>
 
         <div className="flex-1 overflow-y-auto px-10 pb-10 custom-scrollbar">
+          
+          {/* ========================================== */}
+          {/* VISTA: CONFIGURACIÓN (WIDGET INTERACTIVO) */}
+          {/* ========================================== */}
+          {tabActiva === "configuracion" && (
+            <div className="bg-[#0B1221] border border-slate-800/60 rounded-2xl p-8 max-w-3xl shadow-xl animate-fade-in">
+              <h3 className="text-xl font-bold text-white mb-2">Políticas y Reglas</h3>
+              <p className="text-slate-500 text-sm mb-8">Define las reglas bajo las cuales los clientes interactúan con tu negocio.</p>
+
+              <form onSubmit={handleGuardarConfiguracion} className="space-y-8">
+                <div>
+                  <label className="text-sm font-semibold text-slate-300 block mb-1">Tiempo Límite de Cancelación</label>
+                  <p className="text-xs text-slate-500 mb-6">Anticipación mínima requerida para que un cliente pueda cancelar sin penalización.</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Botón Días */}
+                    <div className="bg-[#03070e] border border-slate-800/80 rounded-xl p-4 flex flex-col items-center shadow-inner">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Días</span>
+                      <div className="flex items-center gap-4">
+                        <button type="button" onClick={() => actualizarTiempoCancelacion(diasCancelacion - 1, horasCancelacion, minutosCancelacion)} className="w-8 h-8 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-[#03070e] text-white flex items-center justify-center font-bold transition-colors">-</button>
+                        <input type="number" value={diasCancelacion} onChange={(e) => actualizarTiempoCancelacion(parseInt(e.target.value)||0, horasCancelacion, minutosCancelacion)} className="w-12 text-center bg-transparent text-2xl font-black text-white outline-none appearance-none" />
+                        <button type="button" onClick={() => actualizarTiempoCancelacion(diasCancelacion + 1, horasCancelacion, minutosCancelacion)} className="w-8 h-8 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-[#03070e] text-white flex items-center justify-center font-bold transition-colors">+</button>
+                      </div>
+                    </div>
+
+                    {/* Botón Horas */}
+                    <div className="bg-[#03070e] border border-slate-800/80 rounded-xl p-4 flex flex-col items-center shadow-inner">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Horas</span>
+                      <div className="flex items-center gap-4">
+                        <button type="button" onClick={() => actualizarTiempoCancelacion(diasCancelacion, horasCancelacion - 1, minutosCancelacion)} className="w-8 h-8 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-[#03070e] text-white flex items-center justify-center font-bold transition-colors">-</button>
+                        <input type="number" value={horasCancelacion} onChange={(e) => actualizarTiempoCancelacion(diasCancelacion, parseInt(e.target.value)||0, minutosCancelacion)} className="w-12 text-center bg-transparent text-2xl font-black text-white outline-none appearance-none" />
+                        <button type="button" onClick={() => actualizarTiempoCancelacion(diasCancelacion, horasCancelacion + 1, minutosCancelacion)} className="w-8 h-8 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-[#03070e] text-white flex items-center justify-center font-bold transition-colors">+</button>
+                      </div>
+                    </div>
+
+                    {/* Botón Minutos (Saltos de 15) */}
+                    <div className="bg-[#03070e] border border-slate-800/80 rounded-xl p-4 flex flex-col items-center shadow-inner">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Minutos</span>
+                      <div className="flex items-center gap-4">
+                        <button type="button" onClick={() => actualizarTiempoCancelacion(diasCancelacion, horasCancelacion, minutosCancelacion - 15)} className="w-8 h-8 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-[#03070e] text-white flex items-center justify-center font-bold transition-colors">-</button>
+                        <input type="number" value={minutosCancelacion} onChange={(e) => actualizarTiempoCancelacion(diasCancelacion, horasCancelacion, parseInt(e.target.value)||0)} className="w-12 text-center bg-transparent text-2xl font-black text-white outline-none appearance-none" />
+                        <button type="button" onClick={() => actualizarTiempoCancelacion(diasCancelacion, horasCancelacion, minutosCancelacion + 15)} className="w-8 h-8 rounded-full bg-slate-800 hover:bg-emerald-500 hover:text-[#03070e] text-white flex items-center justify-center font-bold transition-colors">+</button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Resumen Visual */}
+                  <div className="mt-6 text-center bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl text-sm font-medium">
+                    Total configurado en la base de datos: <span className="font-black text-lg ml-1">{configBarberia.tiempo_cancelacion}</span> minutos.
+                    {configBarberia.tiempo_cancelacion === 0 && <p className="text-rose-400 mt-1 text-xs">⚠️ Tus clientes podrán cancelar hasta el último minuto.</p>}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-800/60">
+                  <button type="submit" className="w-full md:w-auto px-8 py-3 bg-emerald-500 hover:bg-emerald-400 text-[#03070e] font-bold rounded-lg transition-colors shadow-lg shadow-emerald-500/20">
+                    Guardar Configuración
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           {/* VISTA: SERVICIOS */}
           {tabActiva === "servicios" && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
@@ -514,6 +634,7 @@ export default function AdminDashboard({ usuario, onVolver }) {
                           precio: "",
                           duracion: "",
                           descripcion: "",
+                          imagen_archivo: null,
                         });
                       }}
                       className="w-full text-slate-500 text-xs mt-2"

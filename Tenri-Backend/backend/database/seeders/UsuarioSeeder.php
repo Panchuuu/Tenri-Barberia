@@ -12,10 +12,10 @@ class UsuarioSeeder extends Seeder
     {
         // Creamos al Administrador
         User::create([
-            'name' => 'Panchuuu Admin',
+            'name' => 'Admin Tenri',
             'email' => 'admin@tenri.cl',
             'password' => Hash::make('admin123'), // Siempre encriptada
-            'rol' => 'admin'
+            'rol' => 'superadmin'
         ]);
 
         // Creamos a un Barbero de prueba
