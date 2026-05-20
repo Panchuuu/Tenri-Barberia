@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+// 👇 Importamos nuestro portero inteligente centralizado
+import apiFetch from "../utils/api";
 
 export default function SuperAdminDashboard({ usuario, onVolver }) {
   const [barberias, setBarberias] = useState([]);
@@ -21,17 +23,23 @@ export default function SuperAdminDashboard({ usuario, onVolver }) {
 
   const cargarBarberias = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/barberias");
-      if (res.ok) setBarberias(await res.json());
+      // 👇 Uso de apiFetch: URL súper limpia
+      const res = await apiFetch("/barberias");
+      
+      if (res.ok) { // 👈 FALTABA ESTA LLAVE DE APERTURA
+        const datos = await res.json();
+        // Guardamos solo el arreglo de datos, ignorando la data de paginación extra
+        setBarberias(datos.data || datos);
+      } // 👈 Y FALTABA ESTA LLAVE DE CIERRE
+      
     } catch (e) {
       console.error(e);
       toast.error("Error al cargar la lista de negocios");
     }
-  };
+};
 
   const handleCrearNegocio = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
     setCargandoForm(true);
 
     // Como enviamos una imagen, usamos FormData en lugar de JSON
@@ -48,13 +56,9 @@ export default function SuperAdminDashboard({ usuario, onVolver }) {
     formData.append("admin_password", form.admin_password);
 
     try {
-      const resp = await fetch("http://127.0.0.1:8000/api/barberias", {
+      // 👇 Uso de apiFetch: El token y el manejo de FormData se hacen automáticos
+      const resp = await apiFetch("/barberias", {
         method: "POST",
-        headers: {
-          // OJO: No enviamos 'Content-Type' aquí, el navegador lo pone solo al usar FormData
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
         body: formData,
       });
 

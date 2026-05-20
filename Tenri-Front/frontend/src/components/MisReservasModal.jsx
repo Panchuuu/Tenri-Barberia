@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+import apiFetch from "../utils/api";
 
 export default function MisReservasModal({ onClose }) {
   const [citas, setCitas] = useState([]);
@@ -10,13 +11,13 @@ export default function MisReservasModal({ onClose }) {
   }, []);
 
   const cargarMisReservas = async () => {
+    // Mantenemos esta validación rápida para evitar peticiones inútiles
     const token = localStorage.getItem("token");
     if (!token) return;
 
     try {
-      const resp = await fetch("http://127.0.0.1:8000/api/mis-reservas", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // 👇 Uso de apiFetch: URL limpia y sin headers manuales
+      const resp = await apiFetch("/mis-reservas");
       if (resp.ok) {
         setCitas(await resp.json());
       }
@@ -33,14 +34,10 @@ export default function MisReservasModal({ onClose }) {
     // Usamos el confirm nativo temporalmente, o puedes hacer tu modal custom aquí también
     if (!window.confirm("¿Estás seguro de que deseas cancelar esta cita?")) return;
 
-    const token = localStorage.getItem("token");
     try {
-      const resp = await fetch(`http://127.0.0.1:8000/api/citas/${id}/estado`, {
+      // 👇 Uso de apiFetch: Inyecta el token y el Content-Type automáticamente
+      const resp = await apiFetch(`/citas/${id}/estado`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({ estado: "cancelada" }),
       });
 
@@ -125,7 +122,7 @@ export default function MisReservasModal({ onClose }) {
                     </span>
                   </div>
 
-                  {/* Cuerpo de la Tarjeta (Servicio, Fecha, Especialista) */}
+                  {/* Cuerpo de la Tarjeta (Servicio, Fecha, Barbero) */}
                   <h4 className="text-lg font-bold text-slate-900 dark:text-slate-200 mb-1">{cita.servicio?.nombre}</h4>
                   
                   <div className="text-sm text-slate-500 dark:text-slate-400 space-y-1 mb-4 font-medium">

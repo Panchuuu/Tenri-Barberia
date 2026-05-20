@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BASE_URL } from '../utils/api';
 
 export default function Login({ onClose, onLoginSuccess }) {
   const [esRegistro, setEsRegistro] = useState(false);
@@ -11,8 +12,10 @@ export default function Login({ onClose, onLoginSuccess }) {
     e.preventDefault();
     setCargando(true);
 
-    const endpoint = esRegistro ? 'register' : 'login';
-    const url = `http://127.0.0.1:8000/api/${endpoint}`;
+    const endpoint = esRegistro ? '/register' : '/login';
+    // 👇 Usamos la URL base centralizada
+    const url = `${BASE_URL}${endpoint}`;
+    
     const cuerpoPeticion = esRegistro 
       ? { name: nombre, email: email, password: password } 
       : { email: email, password: password };
@@ -97,4 +100,4 @@ export default function Login({ onClose, onLoginSuccess }) {
       </div>
     </div>
   );
-} 
+}

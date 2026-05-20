@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import toast from "react-hot-toast";
+import apiFetch from "../utils/api";
 
 export default function ReviewModal({ cita, onClose, onReviewSuccess }) {
   const [calificacion, setCalificacion] = useState(0);
@@ -15,16 +16,11 @@ export default function ReviewModal({ cita, onClose, onReviewSuccess }) {
     }
 
     setEnviando(true);
-    const token = localStorage.getItem("token");
 
     try {
-      const respuesta = await fetch(`http://127.0.0.1:8000/api/mis-citas/${cita.id}/calificar`, {
+      // 👇 Uso de apiFetch: Inyecta el token, los headers y arma la URL automáticamente
+      const respuesta = await apiFetch(`/mis-citas/${cita.id}/calificar`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
         body: JSON.stringify({ calificacion, comentario })
       });
 

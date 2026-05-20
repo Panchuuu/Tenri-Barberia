@@ -7,36 +7,25 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
+// 👇 Importamos nuestro nuevo Request
+use App\Http\Requests\StoreBarberiaRequest;
 
 class BarberiaController extends Controller
 {
-    // 🌍 LISTAR PÚBLICO: Para la página de inicio (Directorio)
     public function index() {
-        return response()->json(Barberia::all());
+        return response()->json(\App\Models\Barberia::paginate(10));
     }
 
-    // 👑 CREAR (SUPER ADMIN): Crea el negocio y a su primer administrador
-    public function store(Request $request) {
-        // 1. Validamos todos los datos (incluyendo el logo si viene)
-        $request->validate([
-            'nombre_barberia' => 'required|string|max:255',
-            'color_principal' => 'required|string|max:20',
-            'logo' => 'nullable|image|max:2048', // Máximo 2MB
-            'admin_nombre' => 'required|string|max:255',
-            'admin_email' => 'required|email|unique:users,email',
-            'admin_password' => 'required|string|min:6'
-        ]);
-
-        // 2. Guardamos el logo en la carpeta storage si es que el admin subió uno
+    // 👇 Usamos StoreBarberiaRequest. Si llega aquí, todo es válido.
+    public function store(StoreBarberiaRequest $request) {
+        
         $rutaLogo = null;
         if ($request->hasFile('logo')) {
             $rutaLogo = $request->file('logo')->store('logos_barberias', 'public');
         }
 
-        // 3. Generamos el "slug" automáticamente
-        $slug = \Illuminate\Support\Str::slug($request->nombre_barberia);
+        $slug = Str::slug($request->nombre_barberia);
 
-        // 4. Creamos la empresa con su logo
         $barberia = Barberia::create([
             'nombre' => $request->nombre_barberia,
             'slug' => $slug,
@@ -44,11 +33,10 @@ class BarberiaController extends Controller
             'logo' => $rutaLogo
         ]);
 
-        // 5. Creamos al administrador dueño de ese negocio
         $admin = User::create([
             'name' => $request->admin_nombre,
             'email' => $request->admin_email,
-            'password' => \Illuminate\Support\Facades\Hash::make($request->admin_password),
+            'password' => Hash::make($request->admin_password),
             'rol' => 'admin',
             'barberia_id' => $barberia->id
         ]);
@@ -59,21 +47,21 @@ class BarberiaController extends Controller
         ], 201);
     }
 
-    // Obtiene la información de la barbería del admin logueado
     public function miBarberia(Request $request)
     {
-        $barberia = \App\Models\Barberia::findOrFail($request->user()->barberia_id);
+        $barberia = Barberia::findOrFail($request->user()->barberia_id);
         return response()->json($barberia);
     }
 
-    // Actualiza la configuración de la barbería
     public function updateConfig(Request $request)
     {
+        // Como esta validación es de solo 1 línea, podemos dejarla aquí para no hacer un archivo extra,
+        // pero el método 'store' (que era gigante) ya está completamente limpio.
         $request->validate([
             'tiempo_cancelacion' => 'required|integer|min:0'
         ]);
 
-        $barberia = \App\Models\Barberia::findOrFail($request->user()->barberia_id);
+        $barberia = Barberia::findOrFail($request->user()->barberia_id);
         
         $barberia->tiempo_cancelacion = $request->tiempo_cancelacion;
         $barberia->save();

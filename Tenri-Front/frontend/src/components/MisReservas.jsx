@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from "react-hot-toast";
 import ReviewModal from "./ReviewModal";
+import apiFetch from '../utils/api';
 
 export default function MisReservas({ usuario, onVolver }) {
   const [misCitas, setMisCitas] = useState([]);
@@ -20,12 +21,7 @@ export default function MisReservas({ usuario, onVolver }) {
   const cargarMisCitas = async () => {
     const token = localStorage.getItem('token');
     try {
-      const respuesta = await fetch('http://127.0.0.1:8000/api/mis-reservas', {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      });
+      const respuesta = await apiFetch('/mis-reservas');
       
       if (respuesta.ok) {
         const citasDelCliente = await respuesta.json();
@@ -55,13 +51,9 @@ export default function MisReservas({ usuario, onVolver }) {
 
     const token = localStorage.getItem("token");
     try {
-      const resp = await fetch(`http://127.0.0.1:8000/api/mis-citas/${id}/cancelar`, {
+      const resp = await apiFetch(`/mis-citas/${id}/cancelar`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
-        }
+        // Ya no necesitas poner headers, ni Authorization, ni Content-Type
       });
 
       if (resp.ok) {

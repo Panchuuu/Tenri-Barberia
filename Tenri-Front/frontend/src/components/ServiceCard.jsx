@@ -11,9 +11,20 @@ export default function ServiceCard({ servicio, onAgendar }) {
       
       <div>
         <div className="flex justify-between items-start mb-4">
-          <div className="w-12 h-12 bg-slate-50 border border-slate-100 dark:bg-[#03070e] dark:border-slate-700/50 rounded-xl flex items-center justify-center text-2xl shadow-sm dark:shadow-inner group-hover:scale-110 transition-transform">
-            ✂️
-          </div>
+          
+          {/* 👇 MEJORA VISUAL: Si hay foto la mostramos, sino usamos el emoji */}
+          {servicio.imagen_url ? (
+            <img 
+              src={servicio.imagen_url} 
+              alt={servicio.nombre} 
+              className="w-12 h-12 object-cover border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm group-hover:scale-110 transition-transform"
+            />
+          ) : (
+            <div className="w-12 h-12 bg-slate-50 border border-slate-100 dark:bg-[#03070e] dark:border-slate-700/50 rounded-xl flex items-center justify-center text-2xl shadow-sm dark:shadow-inner group-hover:scale-110 transition-transform">
+              ✂️
+            </div>
+          )}
+
           <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 font-bold px-3 py-1 rounded-md text-xs uppercase tracking-wider transition-colors">
             {servicio.duracion} min
           </span>

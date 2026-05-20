@@ -3,28 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
+use App\Http\Requests\RegisterRequest;
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\UpdatePerfilRequest;
 
 class AuthController extends Controller
 {
-    // Función para registrar nuevos clientes
-    public function register(Request $request) {
-        $request->validate([
-            'name' => 'required|string',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:6'
-        ]);
-
+    // 👇 Inyectamos RegisterRequest
+    public function register(RegisterRequest $request) {
+        
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'rol' => 'cliente' //
+            'rol' => 'cliente' 
         ]);
 
-        // Creamos un token de acceso para este usuario
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -33,11 +28,10 @@ class AuthController extends Controller
         ]);
     }
 
-    // Función para iniciar sesión
-    public function login(Request $request) {
+    public function login(LoginRequest $request) {
+        
         $user = User::where('email', $request->email)->first();
 
-        // Verificamos si el usuario existe y si la contraseña coincide
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json(['message' => 'Credenciales incorrectas'], 401);
         }
@@ -46,6 +40,37 @@ class AuthController extends Controller
 
         return response()->json([
             'access_token' => $token,
+            'user' => $user
+        ]);
+    }
+
+    public function updatePerfil(UpdatePerfilRequest $request)
+    {
+        $user = $request->user();
+
+        $user->name = $request->name;
+        $user->email = $request->email;
+
+        if ($request->filled('password')) {
+            $user->password = \Illuminate\Support\Facades\Hash::make($request->password);
+        }
+
+        // 👇 Guardamos la imagen si el usuario subió una
+        if ($request->hasFile('avatar')) {
+            // (Opcional) Si quieres ser muy pro, puedes borrar la imagen anterior aquí
+            $rutaAvatar = $request->file('avatar')->store('avatares', 'public');
+            $user->avatar = $rutaAvatar;
+        }
+
+        $user->save();
+
+        // Le agregamos la URL completa para que React la pueda mostrar directo
+        if ($user->avatar) {
+            $user->avatar_url = asset('storage/' . $user->avatar);
+        }
+
+        return response()->json([
+            'mensaje' => 'Perfil actualizado con éxito',
             'user' => $user
         ]);
     }

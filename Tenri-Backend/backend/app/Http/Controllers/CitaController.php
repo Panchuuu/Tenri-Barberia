@@ -8,32 +8,53 @@ use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 use App\Mail\CitaConfirmadaMail;
 use App\Mail\CitaCanceladaMail;
+// 👇 1. Importamos el Request inteligente
+use App\Http\Requests\StoreCitaRequest;
 
 class CitaController extends Controller
 {   
     public function index(Request $request)
     {
-        // El Admin solo ve las citas de SU barbería
         $citas = \App\Models\Cita::with(['cliente', 'barbero', 'servicio'])
             ->where('barberia_id', $request->user()->barberia_id)
             ->orderBy('fecha', 'desc')
             ->orderBy('hora', 'asc')
-            ->get();
+            ->paginate(10);
             
         return response()->json($citas);
     }
     
-    public function store(Request $request)
+    // 👇 2. Cambiamos Request por StoreCitaRequest
+    public function store(StoreCitaRequest $request)
     {
-        $request->validate([
-            'servicio_id' => 'required|exists:servicios,id',
-            'barbero_id' => 'required|exists:users,id',
-            'fecha' => 'required|date',
-            'hora' => 'required'
-        ]);
+        // 🗑️ ¡Las validaciones se fueron al Form Request!
 
-        // Buscamos el servicio para saber a qué barbería pertenece
-        $servicio = \App\Models\Servicio::findOrFail($request->servicio_id);
+        $servicioNuevo = \App\Models\Servicio::findOrFail($request->servicio_id);
+
+        // ========================================================================
+        // 🛡️ ESCUDO ANTI-CHOQUES DE HORARIO (PREVENIR DOBLE RESERVA)
+        // ========================================================================
+        $horaInicioSolicitada = \Carbon\Carbon::parse($request->hora);
+        $horaFinSolicitada = $horaInicioSolicitada->copy()->addMinutes($servicioNuevo->duracion ?? 30);
+
+        $citasDelDia = \App\Models\Cita::with('servicio')
+            ->where('barbero_id', $request->barbero_id)
+            ->where('fecha', $request->fecha)
+            ->where('estado', '!=', 'cancelada')
+            ->get();
+
+        foreach ($citasDelDia as $citaExistente) {
+            $duracionExistente = $citaExistente->servicio->duracion ?? 30;
+            $inicioExistente = \Carbon\Carbon::parse($citaExistente->hora);
+            $finExistente = $inicioExistente->copy()->addMinutes($duracionExistente);
+
+            if ($horaInicioSolicitada < $finExistente && $horaFinSolicitada > $inicioExistente) {
+                return response()->json([
+                    'message' => '¡Ups! Este horario acaba de ser reservado por otro cliente. Por favor, elige otro.'
+                ], 409);
+            }
+        }
+        // ========================================================================
 
         $cita = new \App\Models\Cita();
         $cita->cliente_id = $request->user()->id;
@@ -43,22 +64,19 @@ class CitaController extends Controller
         $cita->hora = $request->hora;
         $cita->estado = 'confirmada';
         
-        // 👇 MAGIA SAAS: Guardamos el ID de la barbería
-        $cita->barberia_id = $servicio->barberia_id; 
+        // 👇 MAGIA SAAS
+        $cita->barberia_id = $servicioNuevo->barberia_id; 
         
         $cita->save();
 
- 
         $cita->load(['barbero', 'servicio', 'cliente']);
 
         \Illuminate\Support\Facades\Mail::to($request->user()->email)->send(new \App\Mail\CitaConfirmadaMail($cita));
-
         \Illuminate\Support\Facades\Mail::to($cita->barbero->email)->send(new \App\Mail\NuevaCitaBarberoMail($cita));
 
         return response()->json($cita, 201);
     }
 
-    // 👤 MIS RESERVAS (CLIENTE): Trae el historial de citas del usuario actual
     public function misReservas(Request $request)
     {
         $citas = \App\Models\Cita::with(['barbero', 'servicio'])
@@ -74,7 +92,6 @@ class CitaController extends Controller
     {
         $hoy = now()->toDateString(); 
 
-        // Solo calcula el dinero de SU barbería
         $citasDeHoy = \App\Models\Cita::with(['servicio', 'barbero'])
             ->where('barberia_id', $request->user()->barberia_id)
             ->where('fecha', $hoy)
@@ -106,18 +123,13 @@ class CitaController extends Controller
         ]);
     }
 
-    // Función para que el Admin cambie el estado de la cita
     public function updateEstado(Request $request, $id)
     {
-        // Ampliamos el filtro para aceptar todos los estados operativos del sistema
         $request->validate([
             'estado' => 'required|in:pendiente,confirmada,finalizada,cancelada'
         ]);
 
-        // Buscamos la cita por su ID
         $cita = Cita::findOrFail($id);
-        
-        // Actualizamos y guardamos
         $cita->estado = $request->estado;
         $cita->save();
 
@@ -127,17 +139,14 @@ class CitaController extends Controller
         ]);
     }
 
-    // Función para que el Barbero vea únicamente las citas que tiene asignadas
     public function citasBarbero(Request $request)
     {
-        // 1. Buscamos en el modelo Cita
-        $citas = Cita::with(['servicio', 'cliente']) // 2. Traemos los nombres reales del cliente y servicio
-                     ->where('barbero_id', $request->user()->id) // 3. FILTRO VITAL: Solo donde el barbero sea el usuario actual
-                     ->orderBy('fecha', 'asc') // 4. Ordenamos por fecha ascendente (lo más pronto arriba)
-                     ->orderBy('hora', 'asc')  // 5. Y luego por hora
-                     ->get();
+        $citas = Cita::with(['servicio', 'cliente']) 
+                     ->where('barbero_id', $request->user()->id) 
+                     ->orderBy('fecha', 'desc') 
+                     ->orderBy('hora', 'desc')  
+                     ->paginate(10);
                      
-        // 6. Devolvemos la lista en formato JSON al frontend
         return response()->json($citas);
     }
 
@@ -149,10 +158,8 @@ class CitaController extends Controller
             return response()->json(['error' => 'Falta indicar la fecha'], 400);
         }
 
-        // 1. Buscamos los datos del barbero
         $barbero = \App\Models\User::findOrFail($id);
 
-        // 2. Traemos TODAS las citas del día INCLUYENDO la información de su servicio
         $citas = \App\Models\Cita::with('servicio')
             ->where('barbero_id', $id)
             ->where('fecha', $fecha)
@@ -161,7 +168,6 @@ class CitaController extends Controller
 
         $horasOcupadas = [];
 
-        // 3. LA MAGIA DE LA DURACIÓN: Calculamos los bloques reales que ocupa cada cita
         foreach ($citas as $cita) {
             $duracion = $cita->servicio->duracion ?? 30; 
             
@@ -176,18 +182,15 @@ class CitaController extends Controller
             }
         }
 
-        // 👇 NUEVO: ELIMINAR HORAS QUE YA PASARON SI EL DÍA ES HOY 👇
         $hoy = \Illuminate\Support\Carbon::now('America/Santiago'); 
 
         if ($fecha === $hoy->toDateString()) {
             $horaInicioTurno = \Illuminate\Support\Carbon::parse($barbero->hora_inicio, 'America/Santiago');
             $horaFinTurno = \Illuminate\Support\Carbon::parse($barbero->hora_fin, 'America/Santiago');
 
-            // Margen de 15 min para no agendar algo que empieza "ya"
             $horaLimite = $hoy->copy()->addMinutes(15);
 
             while ($horaInicioTurno < $horaFinTurno) {
-                // Debug: Comparamos formatos H:i
                 if ($horaInicioTurno->format('H:i') <= $horaLimite->format('H:i')) {
                     $horasOcupadas[] = $horaInicioTurno->format('H:i');
                 }
@@ -195,10 +198,8 @@ class CitaController extends Controller
             }
         }
 
-        // 4. Limpiamos posibles horas duplicadas y reindexamos el arreglo
         $horasOcupadas = array_values(array_unique($horasOcupadas));
 
-        // 5. Empaquetamos todo y se lo mandamos a React
         return response()->json([
             'ocupadas' => $horasOcupadas,
             'hora_inicio' => date('H:i', strtotime($barbero->hora_inicio)),
@@ -206,34 +207,26 @@ class CitaController extends Controller
         ]);
     }
     
-    // Función exclusiva para que el CLIENTE cancele su propia cita
     public function cancelarMiCita(Request $request, $id)
     {
-        // 1. Buscamos la cita asegurándonos de que PERTENEZCA al usuario
-        // Y cargamos la barbería para saber sus reglas de cancelación
         $cita = Cita::with('barberia')
                     ->where('id', $id)
                     ->where('cliente_id', $request->user()->id)
                     ->firstOrFail();
 
-        // 2. Verificamos que no esté ya finalizada o cancelada
         if ($cita->estado === 'finalizada' || $cita->estado === 'cancelada') {
             return response()->json(['error' => 'Esta cita ya no se puede modificar.'], 400);
         }
 
-        // 3. ⏱️ EL ESCUDO DINÁMICO DE CANCELACIÓN
         $fechaHoraCita = Carbon::parse($cita->fecha . ' ' . $cita->hora);
         $ahora = Carbon::now();
 
-        // Calculamos cuántos minutos faltan para la cita
         $minutosRestantes = $ahora->diffInMinutes($fechaHoraCita, false); 
         
-        // Obtenemos la regla de la barbería (si por algún error no tiene, usamos 30 por defecto)
         $tiempoMinimoExigido = $cita->barberia->tiempo_cancelacion ?? 30;
 
         if ($minutosRestantes < $tiempoMinimoExigido) {
             
-            // MAGIA DE FORMATO: Convertimos los minutos en un texto legible y profesional
             $dias = floor($tiempoMinimoExigido / 1440);
             $horas = floor(($tiempoMinimoExigido % 1440) / 60);
             $mins = $tiempoMinimoExigido % 60;
@@ -243,7 +236,6 @@ class CitaController extends Controller
             if ($horas > 0) $textoPartes[] = $horas . ($horas == 1 ? ' hora' : ' horas');
             if ($mins > 0) $textoPartes[] = $mins . ' minutos';
 
-            // Unimos el array (Ej: "1 día y 2 horas" o "2 horas y 30 minutos")
             $textoFinal = count($textoPartes) > 1 
                 ? implode(', ', array_slice($textoPartes, 0, -1)) . ' y ' . end($textoPartes)
                 : ($textoPartes[0] ?? '0 minutos');
@@ -253,11 +245,9 @@ class CitaController extends Controller
             ], 403); 
         }
 
-        // 4. Si pasó el escudo de tiempo, cambiamos el estado
         $cita->estado = 'cancelada';
         $cita->save();
 
-        // 5. 💌 Disparamos el correo de cancelación al cliente
         $cita->load(['servicio']); 
         \Illuminate\Support\Facades\Mail::to($request->user()->email)->send(new \App\Mail\CitaCanceladaMail($cita));
 
@@ -266,7 +256,6 @@ class CitaController extends Controller
 
     public function calificar(Request $request, $id)
     {
-        // Validamos que envíen las estrellas (1-5)
         $request->validate([
             'calificacion' => 'required|integer|min:1|max:5',
             'comentario' => 'nullable|string|max:500'
@@ -274,22 +263,18 @@ class CitaController extends Controller
 
         $cita = \App\Models\Cita::findOrFail($id);
 
-        // 1. Seguridad: Solo el dueño de la cita puede calificarla
         if ($cita->cliente_id !== $request->user()->id) {
             return response()->json(['error' => 'No tienes permiso para calificar esta cita'], 403);
         }
 
-        // 2. Lógica de negocio: Solo se califican citas finalizadas
         if ($cita->estado !== 'finalizada') {
             return response()->json(['error' => 'Solo puedes calificar servicios que ya finalizaron'], 400);
         }
 
-        // 3. Evitar reseñas duplicadas
         if ($cita->calificacion !== null) {
             return response()->json(['error' => 'Ya calificaste esta cita anteriormente'], 400);
         }
 
-        // Guardamos la reseña
         $cita->calificacion = $request->calificacion;
         $cita->comentario = $request->comentario;
         $cita->save();

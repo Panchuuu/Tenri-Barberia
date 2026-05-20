@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Barberia;
 use Illuminate\Http\Request;
+// 👇 Importamos nuestros Requests inteligentes
+use App\Http\Requests\AsignarRolRequest;
+use App\Http\Requests\UpdateBarberoRequest;
 
 class BarberoController extends Controller
 {
@@ -19,26 +22,24 @@ class BarberoController extends Controller
         return User::where('rol', 'barbero')->where('barberia_id', $barberia->id)->get();
     }
 
-    // 🔒 ASIGNAR ROL (ADMIN): Se amarra a la empresa del administrador
-    public function asignarRol(Request $request) {
+    // 🔒 ASIGNAR ROL (ADMIN): Usamos AsignarRolRequest
+    public function asignarRol(AsignarRolRequest $request) {
+        // Como el Request ya validó que el email existe, podemos buscarlo con confianza
         $user = User::where('email', $request->email)->first();
         
-        if($user) {
-            $user->rol = 'barbero';
-            $user->hora_inicio = $request->hora_inicio ?? '10:00:00';
-            $user->hora_fin = $request->hora_fin ?? '19:00:00';
-            
-            // 👇 MAGIA SAAS: Lo asignamos a la empresa del Admin
-            $user->barberia_id = $request->user()->barberia_id;
-            
-            $user->save();
-            return response()->json($user);
-        }
-        return response()->json(['error' => 'Usuario no encontrado'], 404);
+        $user->rol = 'barbero';
+        $user->hora_inicio = $request->hora_inicio ?? '10:00:00';
+        $user->hora_fin = $request->hora_fin ?? '19:00:00';
+        
+        // 👇 MAGIA SAAS: Lo asignamos a la empresa del Admin
+        $user->barberia_id = $request->user()->barberia_id;
+        
+        $user->save();
+        return response()->json($user);
     }
 
-    // 🔒 ACTUALIZAR (ADMIN)
-    public function update(Request $request, $id) {
+    // 🔒 ACTUALIZAR (ADMIN): Usamos UpdateBarberoRequest
+    public function update(UpdateBarberoRequest $request, $id) {
         // Aseguramos que el Admin solo edite barberos de SU empresa
         $barbero = User::where('id', $id)
                        ->where('barberia_id', $request->user()->barberia_id)
@@ -50,7 +51,7 @@ class BarberoController extends Controller
             'hora_fin' => $request->hora_fin ?? $barbero->hora_fin,
         ]);
 
-        return response()->json(['mensaje' => 'Especialista actualizado', 'barbero' => $barbero]);
+        return response()->json(['mensaje' => 'Barbero actualizado', 'barbero' => $barbero]);
     }
 
     public function destroy(Request $request, $id) {
@@ -64,6 +65,6 @@ class BarberoController extends Controller
             'barberia_id' => null
         ]);
 
-        return response()->json(['mensaje' => 'Especialista removido correctamente']);
+        return response()->json(['mensaje' => 'Barbero removido correctamente']);
     }
 }

@@ -27,6 +27,8 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
+    Route::put('/perfil', [AuthController::class, 'updatePerfil']);
+
     // ==========================================
     // 👑 RUTAS DE SUPERADMIN
     // ==========================================

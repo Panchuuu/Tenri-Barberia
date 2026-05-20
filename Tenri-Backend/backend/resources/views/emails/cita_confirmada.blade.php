@@ -32,7 +32,7 @@
                     ⏰ Hora: <span style="font-weight: normal; color: #475569;">{{ $cita->hora }}</span>
                 </p>
                 <p style="margin: 8px 0; color: #0f172a; font-weight: bold; font-size: 15px;">
-                    ✂️ Especialista: <span style="font-weight: normal; color: #475569;">{{ $cita->barbero->name ?? 'Por asignar' }}</span>
+                    ✂️ Barbero: <span style="font-weight: normal; color: #475569;">{{ $cita->barbero->name ?? 'Por asignar' }}</span>
                 </p>
                 <p style="margin: 8px 0; color: #0f172a; font-weight: bold; font-size: 15px;">
                     💵 Total a pagar en local: <span style="font-weight: normal; color: #10b981;">${{ number_format($cita->servicio->precio ?? 0, 0, ',', '.') }} CLP</span>
