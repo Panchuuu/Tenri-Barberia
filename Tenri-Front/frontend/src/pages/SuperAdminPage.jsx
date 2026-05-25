@@ -1,0 +1,243 @@
+import React, { useState } from "react";
+import toast from "react-hot-toast";
+import useApi from "../hooks/useApi";
+import useApiMutation from "../hooks/useApiMutation";
+import PageHeader from "../components/PageHeader";
+
+const FORM_VACIO = {
+  nombre_barberia: "",
+  color_principal: "#10b981",
+  logo_archivo: null,
+  admin_nombre: "",
+  admin_email: "",
+  admin_password: "",
+};
+
+export default function SuperAdminPage() {
+  const [form, setForm] = useState(FORM_VACIO);
+
+  const { data: barberiasData, refetch } = useApi("/barberias", {
+    transformar: (json) => json.data || json,
+  });
+
+  const { ejecutar, cargando } = useApiMutation();
+  const barberias = barberiasData || [];
+
+  const handleCrear = async (e) => {
+    e.preventDefault();
+    const fd = new FormData();
+    fd.append("nombre_barberia", form.nombre_barberia);
+    fd.append("color_principal", form.color_principal);
+    if (form.logo_archivo) fd.append("logo", form.logo_archivo);
+    fd.append("admin_nombre", form.admin_nombre);
+    fd.append("admin_email", form.admin_email);
+    fd.append("admin_password", form.admin_password);
+
+    const r = await ejecutar("/barberias", { method: "POST", body: fd });
+
+    if (r) {
+      toast.success("¡Negocio creado con éxito!");
+      setForm(FORM_VACIO);
+      const inputLogo = document.getElementById("input-logo");
+      if (inputLogo) inputLogo.value = "";
+      refetch();
+    } else toast.error("Error al crear el negocio. Revisa los datos.");
+  };
+
+  return (
+    <div>
+      <PageHeader
+        tag="Tenri Master"
+        titulo="Red de negocios"
+        subtitulo="Administra los inquilinos (tenants) suscritos a TENRI SPA"
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+
+        {/* FORMULARIO DE CREACIÓN */}
+        <div className="lg:col-span-5 bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-amber-900/30 rounded-2xl p-6 h-fit shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-orange-400" />
+
+          <h3 className="font-display text-xl font-bold text-slate-900 dark:text-white mb-6">Nuevo negocio</h3>
+
+          <form onSubmit={handleCrear} className="space-y-5">
+            <div className="space-y-4 p-4 bg-slate-50 dark:bg-[#080d18] rounded-xl border border-slate-200 dark:border-slate-800/60">
+              <h4 className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest">
+                🏢 Datos de la empresa
+              </h4>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Nombre comercial</label>
+                <input
+                  type="text" value={form.nombre_barberia}
+                  onChange={(e) => setForm({ ...form, nombre_barberia: e.target.value })}
+                  className="w-full bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-amber-500/50"
+                  placeholder="Ej: Barbería VIP" required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Color de marca</label>
+                <div className="flex gap-3 items-center">
+                  <input
+                    type="color" value={form.color_principal}
+                    onChange={(e) => setForm({ ...form, color_principal: e.target.value })}
+                    className="w-10 h-10 rounded cursor-pointer bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 p-0.5 shrink-0"
+                  />
+                  <input
+                    type="text" value={form.color_principal}
+                    onChange={(e) => setForm({ ...form, color_principal: e.target.value })}
+                    className="flex-1 bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-sm text-slate-900 dark:text-slate-200 outline-none uppercase font-mono min-w-0"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Logo (opcional)</label>
+                <input
+                  id="input-logo" type="file" accept="image/*"
+                  onChange={(e) => setForm({ ...form, logo_archivo: e.target.files[0] })}
+                  className="w-full bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-amber-500/10 file:text-amber-600 dark:file:text-amber-500 hover:file:bg-amber-500/20 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4 p-4 bg-slate-50 dark:bg-[#080d18] rounded-xl border border-slate-200 dark:border-slate-800/60">
+              <h4 className="text-xs font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest">
+                👤 Dueño / Administrador
+              </h4>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Nombre completo</label>
+                <input
+                  type="text" value={form.admin_nombre}
+                  onChange={(e) => setForm({ ...form, admin_nombre: e.target.value })}
+                  className="w-full bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-amber-500/50"
+                  placeholder="Juan Pérez" required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Correo (login)</label>
+                <input
+                  type="email" value={form.admin_email}
+                  onChange={(e) => setForm({ ...form, admin_email: e.target.value })}
+                  className="w-full bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-amber-500/50"
+                  placeholder="juan@negocio.com" required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Contraseña temporal</label>
+                <input
+                  type="text" value={form.admin_password}
+                  onChange={(e) => setForm({ ...form, admin_password: e.target.value })}
+                  className="w-full bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-amber-500/50"
+                  placeholder="Mínimo 8 caracteres" required minLength={8}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit" disabled={cargando}
+              className={`w-full py-3.5 rounded-xl font-bold text-white dark:text-[#03070e] transition-all shadow-md ${
+                cargando
+                  ? "bg-amber-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-amber-500 to-orange-400 hover:from-amber-400 hover:to-orange-300 hover:-translate-y-0.5"
+              }`}
+            >
+              {cargando ? "Creando..." : "Crear empresa"}
+            </button>
+          </form>
+        </div>
+
+        {/* LISTA DE BARBERÍAS */}
+        <div className="lg:col-span-7 bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800/60 rounded-2xl shadow-sm overflow-hidden">
+
+          {barberias.length === 0 ? (
+            <div className="p-12 text-center text-slate-500">
+              No hay empresas registradas aún.
+            </div>
+          ) : (
+            <>
+              {/* 💻 DESKTOP: tabla */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 dark:bg-[#080d18] border-b border-slate-200 dark:border-slate-800/60 text-slate-500 font-semibold uppercase text-[10px] tracking-widest">
+                    <tr>
+                      <th className="px-5 py-4">ID</th>
+                      <th className="px-5 py-4">Empresa</th>
+                      <th className="px-5 py-4">Slug</th>
+                      <th className="px-5 py-4 text-right">Color</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                    {barberias.map((b) => (
+                      <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
+                        <td className="px-5 py-4 text-slate-500 font-mono text-xs">#{b.id}</td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            {b.logo_url ? (
+                              <img src={b.logo_url} alt={b.nombre}
+                                   className="w-10 h-10 rounded-lg object-cover border border-slate-200 dark:border-slate-700/50 bg-white" />
+                            ) : (
+                              <div
+                                className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-xs border border-slate-200 dark:border-slate-700/50 shrink-0"
+                                style={{ backgroundColor: b.color_principal || "#10b981" }}
+                              >
+                                {b.nombre?.substring(0, 1).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="text-slate-900 dark:text-slate-200 font-bold">{b.nombre}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-slate-500 font-mono text-xs">/{b.slug}</td>
+                        <td className="px-5 py-4 text-right">
+                          <span
+                            className="inline-block px-2 py-1 rounded text-xs font-mono"
+                            style={{ backgroundColor: `${b.color_principal}20`, color: b.color_principal }}
+                          >
+                            {b.color_principal}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 📱 MOBILE: cards */}
+              <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800/40">
+                {barberias.map((b) => (
+                  <div key={b.id} className="p-4 flex items-center gap-4">
+                    {b.logo_url ? (
+                      <img src={b.logo_url} alt={b.nombre}
+                           className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-700/50 bg-white shrink-0" />
+                    ) : (
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base border border-slate-200 dark:border-slate-700/50 shrink-0"
+                        style={{ backgroundColor: b.color_principal || "#10b981" }}
+                      >
+                        {b.nombre?.substring(0, 1).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <h4 className="font-bold text-slate-900 dark:text-white truncate">{b.nombre}</h4>
+                        <span className="text-slate-400 font-mono text-[10px] shrink-0">#{b.id}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 font-mono mt-0.5 truncate">/{b.slug}</p>
+                      <span
+                        className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-mono"
+                        style={{ backgroundColor: `${b.color_principal}20`, color: b.color_principal }}
+                      >
+                        {b.color_principal}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

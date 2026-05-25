@@ -1,55 +1,83 @@
-import React from 'react';
+import React from "react";
+
+// ============================================================
+// 🎴 SERVICE CARD — Fase 3 visual
+// ============================================================
+// Card editorial premium con:
+//  - Imagen como hero con gradient overlay
+//  - Tipografía mixta (display + sans)
+//  - Precio destacado con tabular nums
+//  - Hover: lift + reveal del CTA
+//  - Duración visible al primer vistazo
+// ============================================================
 
 export default function ServiceCard({ servicio, onAgendar }) {
-  const precioFormateado = new Intl.NumberFormat('es-CL', {
-    style: 'currency',
-    currency: 'CLP',
+  const precioFmt = new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
   }).format(servicio.precio);
 
   return (
-    <div className="bg-white border border-slate-200 dark:bg-[#0B1221] dark:border-slate-800/60 rounded-2xl p-6 flex flex-col justify-between shadow-lg hover:shadow-xl dark:shadow-none hover:border-emerald-500/50 dark:hover:border-emerald-500/30 transition-all group">
-      
-      <div>
-        <div className="flex justify-between items-start mb-4">
-          
-          {/* 👇 MEJORA VISUAL: Si hay foto la mostramos, sino usamos el emoji */}
-          {servicio.imagen_url ? (
-            <img 
-              src={servicio.imagen_url} 
-              alt={servicio.nombre} 
-              className="w-12 h-12 object-cover border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm group-hover:scale-110 transition-transform"
-            />
-          ) : (
-            <div className="w-12 h-12 bg-slate-50 border border-slate-100 dark:bg-[#03070e] dark:border-slate-700/50 rounded-xl flex items-center justify-center text-2xl shadow-sm dark:shadow-inner group-hover:scale-110 transition-transform">
-              ✂️
-            </div>
-          )}
+    <article className="group relative bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800/60 rounded-3xl overflow-hidden card-lift flex flex-col">
 
-          <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 font-bold px-3 py-1 rounded-md text-xs uppercase tracking-wider transition-colors">
-            {servicio.duracion} min
+      {/* MEDIA — Imagen o placeholder visual */}
+      <div className="relative aspect-card overflow-hidden bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800/30 dark:to-[#03070e]">
+        {servicio.imagen_url ? (
+          <img
+            src={servicio.imagen_url}
+            alt={servicio.nombre}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+        ) : (
+          <div className="absolute inset-0 mesh-bg flex items-center justify-center">
+            <svg className="w-16 h-16 text-emerald-500/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+            </svg>
+          </div>
+        )}
+
+        {/* Gradient overlay para legibilidad */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+        {/* Tag duración (esquina) */}
+        <div className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#0B1221]/90 backdrop-blur-sm border border-white/40 dark:border-slate-700/30 shadow-sm">
+          <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest tabular">
+            {servicio.duracion || servicio.duracion_minutos} min
           </span>
         </div>
-
-        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 transition-colors">{servicio.nombre}</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-6 transition-colors">
-          {servicio.descripcion || 'Servicio profesional de barbería con atención personalizada y productos de primera calidad.'}
-        </p>
       </div>
 
-      <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between transition-colors">
-        <div>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mb-1 transition-colors">Valor Final</p>
-          <p className="text-2xl font-black text-slate-900 dark:text-white transition-colors">{precioFormateado}</p>
+      {/* CONTENIDO */}
+      <div className="p-6 flex flex-col flex-1">
+        <h3 className="font-display text-xl font-semibold text-slate-900 dark:text-white leading-tight mb-2">
+          {servicio.nombre}
+        </h3>
+
+        {servicio.descripcion && (
+          <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2 mb-5">
+            {servicio.descripcion}
+          </p>
+        )}
+
+        {/* Precio + CTA */}
+        <div className="mt-auto pt-5 border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Desde</p>
+            <p className="font-display text-2xl font-bold text-slate-900 dark:text-white tabular">{precioFmt}</p>
+          </div>
+
+          <button
+            onClick={() => onAgendar(servicio)}
+            className="group/btn relative px-5 py-3 bg-slate-900 dark:bg-emerald-500 hover:bg-emerald-500 dark:hover:bg-emerald-400 text-white dark:text-[#03070e] text-sm font-bold rounded-full transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-emerald-500/20 flex items-center gap-2 overflow-hidden"
+          >
+            <span className="relative z-10">Agendar</span>
+            <svg className="relative z-10 w-4 h-4 transition-transform group-hover/btn:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5-5 5M5 12h13" />
+            </svg>
+          </button>
         </div>
-        
-        <button 
-          onClick={() => onAgendar(servicio)}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white dark:text-[#03070e] dark:hover:bg-emerald-400 font-bold px-6 py-3 rounded-lg transition-all shadow-md dark:shadow-lg dark:shadow-emerald-900/20 active:scale-95"
-        >
-          Agendar
-        </button>
       </div>
-      
-    </div>
+    </article>
   );
 }

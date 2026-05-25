@@ -11,21 +11,35 @@ class Servicio extends Model
 
     protected $fillable = ['nombre', 'precio', 'duracion_minutos', 'descripcion', 'imagen', 'barberia_id'];
 
-    // 1. Le decimos a Laravel que SIEMPRE envíe este campo inventado llamado 'imagen_url'
-    protected $appends = ['imagen_url'];
+    // 👇 SIEMPRE enviamos estos campos calculados al frontend
+    protected $appends = ['imagen_url', 'duracion'];
 
-    // 2. Aquí calculamos cómo se construye esa URL
-    public function getImagenUrlAttribute()
+    /**
+     * 🔧 FIX FASE 1:
+     * El frontend usa "servicio.duracion" en TODAS partes,
+     * pero la columna real se llama "duracion_minutos".
+     *
+     * Este accessor crea un alias virtual para mantener compatibilidad
+     * sin tener que renombrar la columna en la base de datos.
+     */
+    public function getDuracionAttribute(): int
     {
-        // Si el servicio tiene imagen, le pegamos la ruta de tu servidor local
+        return (int) ($this->duracion_minutos ?? 30);
+    }
+
+    /**
+     * Genera la URL completa de la imagen del servicio.
+     */
+    public function getImagenUrlAttribute(): ?string
+    {
         if ($this->imagen) {
             return asset('storage/' . $this->imagen);
         }
-        // Si no tiene, devolvemos null para que React ponga un ícono por defecto
-        return null; 
+        return null;
     }
 
-    public function barberia() {
+    public function barberia()
+    {
         return $this->belongsTo(Barberia::class);
     }
 }

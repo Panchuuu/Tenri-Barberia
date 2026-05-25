@@ -6,23 +6,19 @@ import apiFetch from '../utils/api';
 export default function MisReservas({ usuario, onVolver }) {
   const [misCitas, setMisCitas] = useState([]);
   const [cargando, setCargando] = useState(true);
-  
-  // Estado para controlar el modal de reseñas
-  const [citaACalificar, setCitaACalificar] = useState(null);
 
-  // 👇 NUEVO ESTADO: Controla el modal de confirmación de cancelación
+  const [citaACalificar, setCitaACalificar] = useState(null);
   const [modalConfirm, setModalConfirm] = useState({ abierto: false, idCita: null });
 
-  // Carga inicial de datos
+  // 🔧 FIX FASE 1: usar optional chaining para evitar TypeError si usuario es null
   useEffect(() => {
     cargarMisCitas();
-  }, [usuario.id]);
+  }, [usuario?.id]);
 
   const cargarMisCitas = async () => {
-    const token = localStorage.getItem('token');
     try {
       const respuesta = await apiFetch('/mis-reservas');
-      
+
       if (respuesta.ok) {
         const citasDelCliente = await respuesta.json();
         setMisCitas(citasDelCliente);
@@ -35,30 +31,22 @@ export default function MisReservas({ usuario, onVolver }) {
     }
   };
 
-  // ==========================================
-  // LÓGICA DE CANCELACIÓN (Con Modal Premium)
-  // ==========================================
-  
-  // 1. Esta función solo abre el modal
   const abrirModalCancelacion = (id) => {
     setModalConfirm({ abierto: true, idCita: id });
   };
 
-  // 2. Esta función se ejecuta si el usuario dice "Sí, cancelar"
   const confirmarCancelacion = async () => {
     const id = modalConfirm.idCita;
-    setModalConfirm({ abierto: false, idCita: null }); // Cerramos el modal
+    setModalConfirm({ abierto: false, idCita: null });
 
-    const token = localStorage.getItem("token");
     try {
       const resp = await apiFetch(`/mis-citas/${id}/cancelar`, {
         method: "PATCH",
-        // Ya no necesitas poner headers, ni Authorization, ni Content-Type
       });
 
       if (resp.ok) {
         toast.success("Cita cancelada correctamente");
-        await cargarMisCitas(); // Recargamos la lista
+        await cargarMisCitas();
       } else {
         const errorData = await resp.json();
         toast.error(errorData.error || "No se pudo cancelar la cita");
@@ -69,15 +57,12 @@ export default function MisReservas({ usuario, onVolver }) {
     }
   };
 
-  // ==========================================
-  // ESTILOS VISUALES
-  // ==========================================
   const getBadgeStyle = (estado) => {
     const estados = {
-      pendiente: "bg-amber-100 text-amber-700 border-amber-200 dark:text-amber-400 dark:bg-amber-400/10 dark:border-amber-400/20",
+      pendiente:  "bg-amber-100 text-amber-700 border-amber-200 dark:text-amber-400 dark:bg-amber-400/10 dark:border-amber-400/20",
       confirmada: "bg-cyan-100 text-cyan-700 border-cyan-200 dark:text-cyan-400 dark:bg-cyan-400/10 dark:border-cyan-400/20",
       finalizada: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-400/10 dark:border-emerald-400/20",
-      cancelada: "bg-rose-100 text-rose-700 border-rose-200 dark:text-rose-400 dark:bg-rose-400/10 dark:border-rose-400/20"
+      cancelada:  "bg-rose-100 text-rose-700 border-rose-200 dark:text-rose-400 dark:bg-rose-400/10 dark:border-rose-400/20"
     };
     return estados[estado?.toLowerCase()] || "bg-slate-100 text-slate-700 border-slate-200 dark:text-slate-400 dark:bg-slate-800 dark:border-transparent";
   };
@@ -90,27 +75,25 @@ export default function MisReservas({ usuario, onVolver }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-slate-50 dark:bg-[#060b14] text-slate-900 dark:text-slate-300 overflow-y-auto animate-fade-in transition-colors duration-300">
-      
-      {/* HEADER CLIENTE */}
+
       <header className="sticky top-0 z-10 bg-white/80 dark:bg-[#03070e]/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/50 shadow-sm transition-colors">
         <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500 dark:text-[#03070e] flex items-center justify-center font-black text-lg transition-colors">
-              {usuario?.name?.substring(0,1).toUpperCase()}
+              {usuario?.name?.substring(0, 1).toUpperCase()}
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">Mis Reservas</h2>
               <p className="text-xs text-slate-500 font-medium">Historial de {usuario?.name}</p>
             </div>
           </div>
-          
+
           <button onClick={onVolver} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/50 dark:hover:bg-slate-800 dark:text-slate-300 rounded-lg text-sm font-semibold transition-all shadow-sm border border-slate-200 dark:border-slate-700">
             Volver a la Tienda
           </button>
         </div>
       </header>
 
-      {/* CONTENIDO PRINCIPAL */}
       <main className="max-w-5xl mx-auto px-6 py-10 w-full flex-1">
         {cargando ? (
           <div className="flex flex-col items-center justify-center py-20">
@@ -132,7 +115,7 @@ export default function MisReservas({ usuario, onVolver }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {misCitas.map(cita => (
               <div key={cita.id} className="bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800/60 rounded-2xl p-6 shadow-sm hover:shadow-md dark:shadow-none hover:border-emerald-500/50 transition-all flex flex-col">
-                
+
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-500 text-[10px] font-bold uppercase tracking-widest mb-1">
@@ -145,11 +128,11 @@ export default function MisReservas({ usuario, onVolver }) {
                     {cita.estado}
                   </span>
                 </div>
-                
+
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold border border-slate-200 dark:border-slate-700">
-                      {cita.barbero?.name?.substring(0,1).toUpperCase() || '?'}
+                      {cita.barbero?.name?.substring(0, 1).toUpperCase() || '?'}
                     </span>
                     <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">
                       Con: {cita.barbero?.name || 'Por asignar'}
@@ -161,9 +144,8 @@ export default function MisReservas({ usuario, onVolver }) {
                 </div>
 
                 <div className="mt-auto pt-2">
-                  
                   {(cita.estado === 'pendiente' || cita.estado === 'confirmada') && (
-                    <button 
+                    <button
                       onClick={() => abrirModalCancelacion(cita.id)}
                       className="mt-2 px-4 py-2.5 w-full text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 dark:text-rose-400 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:border-rose-500/20 font-bold text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
@@ -172,7 +154,7 @@ export default function MisReservas({ usuario, onVolver }) {
                   )}
 
                   {cita.estado === 'finalizada' && cita.calificacion == null && (
-                    <button 
+                    <button
                       onClick={() => setCitaACalificar(cita)}
                       className="mt-2 px-4 py-2.5 w-full bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 font-bold text-sm rounded-lg hover:bg-amber-200 dark:hover:bg-amber-500/20 transition-colors flex items-center justify-center gap-2"
                     >
@@ -188,7 +170,6 @@ export default function MisReservas({ usuario, onVolver }) {
                       </div>
                     </div>
                   )}
-
                 </div>
               </div>
             ))}
@@ -196,18 +177,14 @@ export default function MisReservas({ usuario, onVolver }) {
         )}
       </main>
 
-      {/* MODAL EMERGENTE PARA CALIFICAR */}
       {citaACalificar && (
-        <ReviewModal 
-          cita={citaACalificar} 
-          onClose={() => setCitaACalificar(null)} 
-          onReviewSuccess={() => cargarMisCitas()} 
+        <ReviewModal
+          cita={citaACalificar}
+          onClose={() => setCitaACalificar(null)}
+          onReviewSuccess={() => cargarMisCitas()}
         />
       )}
 
-      {/* ========================================== */}
-      {/* MODAL DE CONFIRMACIÓN DE CANCELACIÓN (NUEVO) */}
-      {/* ========================================== */}
       {modalConfirm.abierto && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 dark:bg-[#03070e]/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-[400px] shadow-2xl transform transition-all scale-100">
@@ -219,11 +196,11 @@ export default function MisReservas({ usuario, onVolver }) {
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Cancelar Reserva</h3>
             </div>
-            
+
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-8 pl-14">
               ¿Estás seguro de que deseas cancelar esta cita? Esta acción no se puede deshacer.
             </p>
-            
+
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setModalConfirm({ abierto: false, idCita: null })}

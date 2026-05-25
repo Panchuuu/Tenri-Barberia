@@ -2,51 +2,70 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-// 👇 AQUÍ ESTÁ EL CAMBIO: Agregamos las nuevas columnas permitidas
-#[Fillable(['name', 'email', 'password', 'rol', 'avatar', 'hora_inicio', 'hora_fin', 'barberia_id'])]
-#[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
-    
+
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'rol',
+        'avatar',
+        'barberia_id',
+        'hora_inicio',
+        'hora_fin',
+        // 🎨 FASE 4A
+        'bio',
+        'especialidad',
+        'promedio_calificacion',
+        'total_resenas',
+    ];
+
+    protected $hidden = ['password', 'remember_token'];
+
+    protected $casts = [
+        'email_verified_at'      => 'datetime',
+        'password'               => 'hashed',
+        'promedio_calificacion'  => 'decimal:2',
+        'total_resenas'          => 'integer',
+    ];
+
+    // Siempre exponer avatar_url en la respuesta JSON
+    protected $appends = ['avatar_url'];
+
     /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
+     * Accessor: URL completa del avatar.
      */
-    protected function casts(): array
+    public function getAvatarUrlAttribute(): ?string
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
+        return $this->avatar ? asset('storage/' . $this->avatar) : null;
     }
 
-    protected $appends = ['promedio_calificacion']; 
+    // ===== Relaciones =====
 
-    // Relación: Un usuario (barbero) tiene muchas citas como trabajador
-    public function citasAtendidas()
+    public function barberia()
+    {
+        return $this->belongsTo(Barberia::class);
+    }
+
+    public function citasComoBarbero()
     {
         return $this->hasMany(Cita::class, 'barbero_id');
     }
 
-    // Calcula el promedio de estrellas automáticamente
-    public function getPromedioCalificacionAttribute()
+    public function citasComoCliente()
     {
-        // Solo calculamos el promedio de citas que tienen calificación
-        $promedio = $this->citasAtendidas()->whereNotNull('calificacion')->avg('calificacion');
-        
-        // Lo redondeamos a 1 decimal (ej. 4.8). Si no tiene reseñas, devolvemos 0
-        return $promedio ? round($promedio, 1) : 0; 
+        return $this->hasMany(Cita::class, 'cliente_id');
+    }
+
+    public function bloqueos()
+    {
+        return $this->hasMany(BloqueoHorario::class, 'barbero_id');
     }
 }

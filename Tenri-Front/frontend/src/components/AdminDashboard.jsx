@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import apiFetch from "../utils/api";
+import apiFetch, { apiLogout } from "../utils/api";
 import PerfilUsuario from "./PerfilUsuario";
 
 export default function AdminDashboard({ usuario, setUsuario, onVolver }) {
@@ -51,7 +51,8 @@ export default function AdminDashboard({ usuario, setUsuario, onVolver }) {
 
   const cargarDatos = async (pagina = 1) => {
     try {
-      const resB = await apiFetch("/barberos?barberia=tenri-barber");
+      // 🔧 FIX FASE 1: endpoint multi-tenant safe (filtra por la barbería del admin)
+      const resB = await apiFetch("/mi-equipo");
       if (resB.ok) setBarberos(await resB.json());
 
       const resC = await apiFetch(`/citas?page=${pagina}`);
@@ -69,8 +70,8 @@ export default function AdminDashboard({ usuario, setUsuario, onVolver }) {
       const resF = await apiFetch("/finanzas/hoy");
       if (resF.ok) setFinanzas(await resF.json());
 
-      // Cargamos el catálogo de servicios
-      const resS = await apiFetch("/servicios?barberia=tenri-barber");
+      // 🔧 FIX FASE 1: endpoint multi-tenant safe
+      const resS = await apiFetch("/mis-servicios");
       if (resS.ok) setServicios(await resS.json());
 
       // Cargamos la configuración actual de la barbería
@@ -301,9 +302,9 @@ export default function AdminDashboard({ usuario, setUsuario, onVolver }) {
     }
   };
 
-  const handleCerrarSesion = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  const handleCerrarSesion = async () => {
+    // 🔧 FIX FASE 1: revocamos el token en el servidor, no solo en localStorage
+    await apiLogout();
     window.location.reload();
   };
 
@@ -814,7 +815,14 @@ export default function AdminDashboard({ usuario, setUsuario, onVolver }) {
                           <button
                             onClick={() => {
                               setEditandoServicioId(s.id);
-                              setFormServicio(s);
+                              // 🔧 FIX FASE 1: solo cargamos los campos del form, no imagen_url ni objetos extra
+                              setFormServicio({
+                                nombre: s.nombre || "",
+                                precio: s.precio || "",
+                                duracion: s.duracion || s.duracion_minutos || "",
+                                descripcion: s.descripcion || "",
+                                imagen_archivo: null,
+                              });
                             }}
                             className="text-cyan-500 text-xs font-bold uppercase"
                           >

@@ -1,80 +1,84 @@
 <?php
 
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BarberiaController;
+use App\Http\Controllers\BarberoController;
+use App\Http\Controllers\BloqueoHorarioController;
+use App\Http\Controllers\CitaController;
+use App\Http\Controllers\ServicioController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ServicioController;
-use App\Http\Controllers\CitaController;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\BarberoController;
 
 // ==========================================
-// 🔓 RUTAS PÚBLICAS (No requieren sesión)
+// 🔓 PÚBLICAS
 // ==========================================
 Route::get('/servicios', [ServicioController::class, 'index']);
-Route::post('/register', [AuthController::class, 'register']);
 Route::get('/barberos', [BarberoController::class, 'index']);
-Route::get('/barberias', [App\Http\Controllers\BarberiaController::class, 'index']);
+Route::get('/barberias', [BarberiaController::class, 'index']);
 Route::get('/barberos/{id}/disponibilidad', [CitaController::class, 'disponibilidad']);
-Route::post('/login', [AuthController::class, 'login']);
+
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login',    [AuthController::class, 'login']);
+});
 
 // ==========================================
-// 🔒 RUTAS PROTEGIDAS (Requieren Token de Sanctum)
+// 🔒 PROTEGIDAS (Sanctum)
 // ==========================================
 Route::middleware('auth:sanctum')->group(function () {
-    
-    // Ruta general para obtener los datos del usuario logueado (Cualquier autenticado)
-    Route::get('/user', function (Request $request) {
-        return $request->user();
-    });
 
+    Route::get('/user', fn (Request $request) => $request->user());
     Route::put('/perfil', [AuthController::class, 'updatePerfil']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 
-    // ==========================================
-    // 👑 RUTAS DE SUPERADMIN
-    // ==========================================
+    // 👑 SUPERADMIN
     Route::middleware('role:superadmin')->group(function () {
-        Route::post('/barberias', [App\Http\Controllers\BarberiaController::class, 'store']);
+        Route::post('/barberias', [BarberiaController::class, 'store']);
     });
 
-    // ==========================================
-    // ⚙️ RUTAS DE ADMIN (Dueño de la barbería)
-    // ==========================================
+    // ⚙️ ADMIN
     Route::middleware('role:admin')->group(function () {
-        // Finanzas
-        Route::get('/finanzas/hoy', [CitaController::class, 'resumenFinancieroHoy']);
-        
-        // Barberia
-        Route::get('/mi-barberia', [\App\Http\Controllers\BarberiaController::class, 'miBarberia']);
-        Route::put('/mi-barberia', [\App\Http\Controllers\BarberiaController::class, 'updateConfig']);
+        // 📊 FASE 4A: stats por periodo (hoy, semana, mes, custom)
+        Route::get('/finanzas/hoy',     [CitaController::class, 'resumenFinancieroHoy']);
+        Route::get('/finanzas/resumen', [CitaController::class, 'resumenPorPeriodo']);
 
-        // Gestión de Barberos
-        Route::post('/barberos/asignar', [BarberoController::class, 'asignarRol']);
-        Route::put('/barberos/{id}', [BarberoController::class, 'update']);
-        Route::delete('/barberos/{id}', [App\Http\Controllers\BarberoController::class, 'destroy']);
-        Route::post('/barberos', [BarberoController::class, 'store']);
-        
-        // Gestión de Servicios
-        Route::post('/servicios', [ServicioController::class, 'store']);
-        Route::put('/servicios/{id}', [ServicioController::class, 'update']);
+        // Barbería
+        Route::get('/mi-barberia', [BarberiaController::class, 'miBarberia']);
+        Route::put('/mi-barberia', [BarberiaController::class, 'updateConfig']);
+        Route::get('/mi-equipo',     [BarberiaController::class, 'miEquipo']);
+        Route::get('/mis-servicios', [BarberiaController::class, 'misServicios']);
+
+        // Barberos
+        Route::post  ('/barberos',           [BarberoController::class, 'store']);
+        Route::post  ('/barberos/asignar',   [BarberoController::class, 'asignarRol']);
+        Route::post  ('/barberos/{id}',      [BarberoController::class, 'update']); // POST + _method=PUT para multipart
+        Route::put   ('/barberos/{id}',      [BarberoController::class, 'update']);
+        Route::delete('/barberos/{id}',      [BarberoController::class, 'destroy']);
+
+        // Servicios
+        Route::post  ('/servicios',      [ServicioController::class, 'store']);
+        Route::put   ('/servicios/{id}', [ServicioController::class, 'update']);
         Route::delete('/servicios/{id}', [ServicioController::class, 'destroy']);
+
+        // 🚫 FASE 4A: bloqueos de horario
+        Route::get   ('/bloqueos',      [BloqueoHorarioController::class, 'index']);
+        Route::post  ('/bloqueos',      [BloqueoHorarioController::class, 'store']);
+        Route::delete('/bloqueos/{id}', [BloqueoHorarioController::class, 'destroy']);
     });
 
-    // ==========================================
-    // 💈 RUTAS DE BARBERO Y ADMIN (Ambos pueden acceder)
-    // ==========================================
+    // 💈 ADMIN + BARBERO
     Route::middleware('role:admin,barbero')->group(function () {
-        // Citas generales y de gestión
-        Route::get('/citas', [CitaController::class, 'index']);
-        Route::patch('/citas/{id}/estado', [CitaController::class, 'updateEstado']);
-        Route::get('/barbero/citas', [CitaController::class, 'citasBarbero']);
+        Route::get  ('/citas',                [CitaController::class, 'index']);
+        Route::patch('/citas/{id}/estado',    [CitaController::class, 'updateEstado']);
+        Route::get  ('/barbero/citas',        [CitaController::class, 'citasBarbero']);
     });
 
-    // ==========================================
-    // 👤 RUTAS COMUNES (Cliente, Barbero, Admin)
-    // ==========================================
-    // Todos los usuarios logueados pueden agendar, ver sus propias reservas y cancelar
-    Route::post('/citas', [CitaController::class, 'store']);
-    Route::get('/mis-reservas', [App\Http\Controllers\CitaController::class, 'misReservas']);
-    Route::patch('/mis-citas/{id}/cancelar', [CitaController::class, 'cancelarMiCita']);
-    Route::post('/mis-citas/{id}/calificar', [CitaController::class, 'calificar']);
+    // 👤 COMUNES
+    Route::post ('/citas',                       [CitaController::class, 'store']);
+    Route::get  ('/mis-reservas',                [CitaController::class, 'misReservas']);
+    Route::patch('/mis-citas/{id}/cancelar',     [CitaController::class, 'cancelarMiCita']);
+    Route::post ('/mis-citas/{id}/calificar',    [CitaController::class, 'calificar']);
+
+    // 🔄 FASE 4A: reagendar (lo puede hacer cliente, admin o barbero según rol)
+    Route::patch('/citas/{id}/reagendar', [CitaController::class, 'reagendar']);
 });

@@ -14,17 +14,19 @@ class RegisterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:6'
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users',
+            // 🔒 FIX FASE 1: subimos mínimo a 8 caracteres
+            'password' => 'required|min:8|confirmed',
         ];
     }
 
     public function messages(): array
     {
         return [
-            'email.unique' => 'Este correo ya está en uso.',
-            'password.min' => 'La contraseña debe tener al menos 6 caracteres.'
+            'email.unique'        => 'Este correo ya está en uso.',
+            'password.min'        => 'La contraseña debe tener al menos 8 caracteres.',
+            'password.confirmed'  => 'Las contraseñas no coinciden.',
         ];
     }
 }

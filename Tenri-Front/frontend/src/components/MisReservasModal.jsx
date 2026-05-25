@@ -11,12 +11,10 @@ export default function MisReservasModal({ onClose }) {
   }, []);
 
   const cargarMisReservas = async () => {
-    // Mantenemos esta validación rápida para evitar peticiones inútiles
     const token = localStorage.getItem("token");
     if (!token) return;
 
     try {
-      // 👇 Uso de apiFetch: URL limpia y sin headers manuales
       const resp = await apiFetch("/mis-reservas");
       if (resp.ok) {
         setCitas(await resp.json());
@@ -29,23 +27,24 @@ export default function MisReservasModal({ onClose }) {
     }
   };
 
-  // Función para que el cliente cancele una cita que aún no pasa
+  // 🔧 FIX FASE 1:
+  // Antes este componente llamaba a /citas/{id}/estado que solo
+  // pueden tocar admin/barbero. Un cliente recibía 403.
+  // Ahora usa el endpoint correcto /mis-citas/{id}/cancelar.
   const handleCancelarCita = async (id) => {
-    // Usamos el confirm nativo temporalmente, o puedes hacer tu modal custom aquí también
     if (!window.confirm("¿Estás seguro de que deseas cancelar esta cita?")) return;
 
     try {
-      // 👇 Uso de apiFetch: Inyecta el token y el Content-Type automáticamente
-      const resp = await apiFetch(`/citas/${id}/estado`, {
+      const resp = await apiFetch(`/mis-citas/${id}/cancelar`, {
         method: "PATCH",
-        body: JSON.stringify({ estado: "cancelada" }),
       });
 
       if (resp.ok) {
         toast.success("Cita cancelada correctamente");
-        await cargarMisReservas(); // Recargamos la lista
+        await cargarMisReservas();
       } else {
-        toast.error("No se pudo cancelar la cita");
+        const err = await resp.json();
+        toast.error(err.error || "No se pudo cancelar la cita");
       }
     } catch (e) {
       console.error(e);
@@ -53,18 +52,16 @@ export default function MisReservasModal({ onClose }) {
     }
   };
 
-  // Estilos visuales para el estado de la cita
   const getBadgeStyle = (estado) => {
     const estados = {
-      pendiente: "text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-400/10 border-amber-200 dark:border-amber-400/20",
+      pendiente:  "text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-400/10 border-amber-200 dark:border-amber-400/20",
       confirmada: "text-cyan-600 bg-cyan-100 dark:text-cyan-400 dark:bg-cyan-400/10 border-cyan-200 dark:border-cyan-400/20",
       finalizada: "text-emerald-600 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-400/10 border-emerald-200 dark:border-emerald-400/20",
-      cancelada: "text-rose-600 bg-rose-100 dark:text-rose-400 dark:bg-rose-400/10 border-rose-200 dark:border-rose-400/20",
+      cancelada:  "text-rose-600 bg-rose-100 dark:text-rose-400 dark:bg-rose-400/10 border-rose-200 dark:border-rose-400/20",
     };
     return estados[estado?.toLowerCase()] || "text-slate-500 bg-slate-100 border-slate-200";
   };
 
-  // Ícono X para cerrar
   const XIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
@@ -73,11 +70,8 @@ export default function MisReservasModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-[150] flex justify-end bg-slate-900/40 dark:bg-[#03070e]/80 backdrop-blur-sm animate-fade-in transition-colors">
-      
-      {/* PANEL DESLIZABLE (SLIDE-OVER) */}
       <div className="bg-white dark:bg-[#0B1221] w-full max-w-md h-full flex flex-col shadow-[-10px_0_30px_rgba(0,0,0,0.2)] animate-slide-in-right border-l border-slate-200 dark:border-slate-800/60 transition-colors">
-        
-        {/* CABECERA */}
+
         <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800/60 flex justify-between items-center bg-slate-50 dark:bg-[#080d18]">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Mis Reservas</h2>
@@ -88,7 +82,6 @@ export default function MisReservasModal({ onClose }) {
           </button>
         </div>
 
-        {/* CONTENIDO (LISTA DE CITAS) */}
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50 dark:bg-transparent">
           {cargando ? (
             <div className="flex justify-center items-center h-40">
@@ -106,8 +99,7 @@ export default function MisReservasModal({ onClose }) {
             <div className="space-y-4">
               {citas.map((cita) => (
                 <div key={cita.id} className="bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-800/80 rounded-xl p-5 shadow-sm hover:border-emerald-500/50 transition-colors">
-                  
-                  {/* Encabezado de la Tarjeta (Barbería y Estado) */}
+
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex items-center justify-center font-bold text-[10px]">
@@ -122,9 +114,8 @@ export default function MisReservasModal({ onClose }) {
                     </span>
                   </div>
 
-                  {/* Cuerpo de la Tarjeta (Servicio, Fecha, Barbero) */}
                   <h4 className="text-lg font-bold text-slate-900 dark:text-slate-200 mb-1">{cita.servicio?.nombre}</h4>
-                  
+
                   <div className="text-sm text-slate-500 dark:text-slate-400 space-y-1 mb-4 font-medium">
                     <p className="flex items-center gap-2">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -136,9 +127,8 @@ export default function MisReservasModal({ onClose }) {
                     </p>
                   </div>
 
-                  {/* Botón de Cancelar (Solo si la cita está pendiente) */}
-                  {cita.estado === "pendiente" && (
-                    <button 
+                  {(cita.estado === "pendiente" || cita.estado === "confirmada") && (
+                    <button
                       onClick={() => handleCancelarCita(cita.id)}
                       className="w-full py-2 rounded-lg text-xs font-bold text-rose-500 bg-rose-50 hover:bg-rose-100 border border-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:border-rose-500/20 transition-colors"
                     >

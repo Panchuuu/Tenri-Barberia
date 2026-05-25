@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import toast from "react-hot-toast";
-import apiFetch from "../utils/api";
+import apiFetch, { BASE_URL } from "../utils/api";
 
 export default function PerfilUsuario({ usuario, setUsuario }) {
   const [formData, setFormData] = useState({
@@ -8,14 +8,17 @@ export default function PerfilUsuario({ usuario, setUsuario }) {
     email: usuario.email || "",
     password: "",
     password_confirmation: "",
-    avatar_archivo: null, // 👈 Nuevo estado para el archivo físico
+    avatar_archivo: null,
   });
 
   const [cargando, setCargando] = useState(false);
 
-  // Generamos la URL de la imagen (si existe) o dejamos null
-  // Nota: Al iniciar sesión desde App.jsx, asegúrate de que el backend envíe avatar_url
-  const avatarVisual = usuario.avatar_url || (usuario.avatar ? `http://127.0.0.1:8000/storage/${usuario.avatar}` : null);
+  // 🔧 FIX FASE 1:
+  // Antes la URL del storage estaba hardcodeada a 127.0.0.1:8000.
+  // Ahora la derivamos del BASE_URL de la API (quitamos /api).
+  const STORAGE_URL = BASE_URL.replace(/\/api\/?$/, "/storage");
+  const avatarVisual =
+    usuario.avatar_url || (usuario.avatar ? `${STORAGE_URL}/${usuario.avatar}` : null);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -29,36 +32,35 @@ export default function PerfilUsuario({ usuario, setUsuario }) {
     e.preventDefault();
     setCargando(true);
 
-    // 👇 Como enviamos archivos, usamos FormData
     const data = new FormData();
     data.append("name", formData.name);
     data.append("email", formData.email);
-    
+
     if (formData.password) {
       data.append("password", formData.password);
       data.append("password_confirmation", formData.password_confirmation);
     }
-    
+
     if (formData.avatar_archivo) {
       data.append("avatar", formData.avatar_archivo);
     }
-    
-    // TRUCO LARAVEL: Para enviar archivos y actualizar, se envía por POST con el método falso PUT
-    data.append("_method", "PUT"); 
+
+    // Truco Laravel: POST + _method=PUT permite enviar FormData en un update
+    data.append("_method", "PUT");
 
     try {
       const res = await apiFetch("/perfil", {
-        method: "POST", // 👈 Cambiamos a POST por el FormData
+        method: "POST",
         body: data,
       });
 
       if (res.ok) {
         const respuesta = await res.json();
         toast.success("¡Perfil actualizado!");
-        
+
         setUsuario(respuesta.user);
         localStorage.setItem("user", JSON.stringify(respuesta.user));
-        
+
         setFormData({ ...formData, password: "", password_confirmation: "", avatar_archivo: null });
       } else {
         const errores = await res.json();
@@ -74,16 +76,17 @@ export default function PerfilUsuario({ usuario, setUsuario }) {
   return (
     <div className="max-w-2xl bg-[#0B1221] border border-slate-800/60 rounded-2xl p-8 shadow-xl animate-fade-in">
       <div className="flex items-center gap-6 mb-8">
-        {/* 👇 Mostrar Foto o Iniciales */}
-        <div className="w-20 h-20 rounded-full flex items-center justify-center text-[#03070e] text-2xl font-black shadow-lg overflow-hidden border-2 border-emerald-500/20"
-             style={{ backgroundColor: avatarVisual ? 'transparent' : '#10b981' }}>
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center text-[#03070e] text-2xl font-black shadow-lg overflow-hidden border-2 border-emerald-500/20"
+          style={{ backgroundColor: avatarVisual ? "transparent" : "#10b981" }}
+        >
           {avatarVisual ? (
             <img src={avatarVisual} alt="Avatar" className="w-full h-full object-cover" />
           ) : (
             formData.name.substring(0, 2).toUpperCase()
           )}
         </div>
-        
+
         <div>
           <h3 className="text-xl font-bold text-white mb-1">Configuración de Cuenta</h3>
           <p className="text-slate-500 text-sm">Gestiona tu información personal, foto y seguridad.</p>
@@ -91,8 +94,6 @@ export default function PerfilUsuario({ usuario, setUsuario }) {
       </div>
 
       <form onSubmit={handleGuardar} className="space-y-6">
-        
-        {/* Campo Avatar */}
         <div>
           <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">Foto de Perfil</label>
           <input
@@ -115,13 +116,13 @@ export default function PerfilUsuario({ usuario, setUsuario }) {
         </div>
 
         <div className="pt-6 border-t border-slate-800/50">
-          <h4 className="text-sm font-bold text-white mb-4 text-emerald-500">Cambiar Contraseña</h4>
+          <h4 className="text-sm font-bold text-emerald-500 mb-4">Cambiar Contraseña</h4>
           <p className="text-xs text-slate-500 mb-6">Deja estos campos vacíos si no deseas cambiar tu clave actual.</p>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">Nueva Contraseña</label>
-              <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="••••••••" className="w-full bg-[#03070e] border border-slate-800 rounded-lg p-3 text-sm text-slate-200 outline-none focus:border-emerald-500/50" />
+              <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="••••••••" minLength={8} className="w-full bg-[#03070e] border border-slate-800 rounded-lg p-3 text-sm text-slate-200 outline-none focus:border-emerald-500/50" />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">Confirmar Contraseña</label>

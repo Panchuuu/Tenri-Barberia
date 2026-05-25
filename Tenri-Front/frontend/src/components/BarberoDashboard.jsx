@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-// Importamos nuestro portero inteligente centralizado
-import apiFetch from "../utils/api";
+import apiFetch, { apiLogout } from "../utils/api";
 
 export default function BarberoDashboard({ usuario, onVolver }) {
   const [citas, setCitas] = useState([]);
@@ -62,9 +61,9 @@ export default function BarberoDashboard({ usuario, onVolver }) {
     }
   };
 
-  const handleCerrarSesion = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  const handleCerrarSesion = async () => {
+    // 🔧 FIX FASE 1: revocar token en servidor
+    await apiLogout();
     window.location.reload();
   };
 

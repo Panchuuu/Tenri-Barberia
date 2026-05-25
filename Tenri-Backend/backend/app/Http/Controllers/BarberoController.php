@@ -3,68 +3,121 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Models\Barberia;
-use Illuminate\Http\Request;
-// 👇 Importamos nuestros Requests inteligentes
-use App\Http\Requests\AsignarRolRequest;
 use App\Http\Requests\UpdateBarberoRequest;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class BarberoController extends Controller
 {
-    // 🌍 LISTAR PÚBLICO: Filtrado por el "slug" de la empresa (Ej: tenri-barber)
-    public function index(Request $request) {
-        $slug = $request->query('barberia'); 
-        if (!$slug) return response()->json(['error' => 'Debes indicar la barbería'], 400);
+    /**
+     * Listado público de barberos (con filtro por barberia).
+     *
+     * 🎨 FASE 4A: ahora se incluye avatar_url, bio, especialidad y rating.
+     */
+    public function index(Request $request)
+    {
+        $query = User::where('rol', 'barbero');
 
-        $barberia = Barberia::where('slug', $slug)->firstOrFail();
+        if ($request->filled('barberia')) {
+            $query->whereHas('barberia', fn ($q) => $q->where('slug', $request->barberia));
+        }
 
-        // Devolvemos solo los barberos de ESA empresa
-        return User::where('rol', 'barbero')->where('barberia_id', $barberia->id)->get();
+        $barberos = $query->get();
+
+        // Modelo User ya incluye avatar_url, promedio_calificacion y total_resenas
+        // por sus accessors y campos, así que no necesitamos transformar.
+        return response()->json($barberos);
     }
 
-    // 🔒 ASIGNAR ROL (ADMIN): Usamos AsignarRolRequest
-    public function asignarRol(AsignarRolRequest $request) {
-        // Como el Request ya validó que el email existe, podemos buscarlo con confianza
-        $user = User::where('email', $request->email)->first();
-        
-        $user->rol = 'barbero';
-        $user->hora_inicio = $request->hora_inicio ?? '10:00:00';
-        $user->hora_fin = $request->hora_fin ?? '19:00:00';
-        
-        // 👇 MAGIA SAAS: Lo asignamos a la empresa del Admin
-        $user->barberia_id = $request->user()->barberia_id;
-        
-        $user->save();
-        return response()->json($user);
-    }
-
-    // 🔒 ACTUALIZAR (ADMIN): Usamos UpdateBarberoRequest
-    public function update(UpdateBarberoRequest $request, $id) {
-        // Aseguramos que el Admin solo edite barberos de SU empresa
-        $barbero = User::where('id', $id)
-                       ->where('barberia_id', $request->user()->barberia_id)
-                       ->firstOrFail();
-
-        $barbero->update([
-            'name' => $request->name ?? $barbero->name,
-            'hora_inicio' => $request->hora_inicio ?? $barbero->hora_inicio,
-            'hora_fin' => $request->hora_fin ?? $barbero->hora_fin,
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users',
+            'password' => 'required|min:8',
         ]);
 
-        return response()->json(['mensaje' => 'Barbero actualizado', 'barbero' => $barbero]);
-    }
-
-    public function destroy(Request $request, $id) {
-        $barbero = User::where('id', $id)
-                       ->where('barberia_id', $request->user()->barberia_id)
-                       ->firstOrFail();
-
-        // Le quitamos el rol y lo sacamos de la barbería
-        $barbero->update([
-            'rol' => 'cliente',
-            'barberia_id' => null
+        $usuario = User::create([
+            'name'        => $request->name,
+            'email'       => $request->email,
+            'password'    => bcrypt($request->password),
+            'rol'         => 'barbero',
+            'barberia_id' => $request->user()->barberia_id,
         ]);
 
-        return response()->json(['mensaje' => 'Barbero removido correctamente']);
+        return response()->json(['mensaje' => 'Barbero creado', 'barbero' => $usuario], 201);
+    }
+
+    /**
+     * Asignar rol de barbero a un usuario existente.
+     */
+    public function asignarRol(Request $request)
+    {
+        $request->validate([
+            'email'       => 'required|email|exists:users,email',
+            'hora_inicio' => 'nullable|date_format:H:i',
+            'hora_fin'    => 'nullable|date_format:H:i',
+        ]);
+
+        $usuario = User::where('email', $request->email)->firstOrFail();
+
+        $usuario->rol         = 'barbero';
+        $usuario->barberia_id = $request->user()->barberia_id;
+
+        if ($request->filled('hora_inicio')) $usuario->hora_inicio = $request->hora_inicio;
+        if ($request->filled('hora_fin'))    $usuario->hora_fin    = $request->hora_fin;
+
+        $usuario->save();
+
+        return response()->json(['mensaje' => 'Rol asignado', 'barbero' => $usuario]);
+    }
+
+    /**
+     * 🎨 FASE 4A: update completo del barbero (nombre, horario, bio, especialidad, foto).
+     */
+    public function update(UpdateBarberoRequest $request, $id)
+    {
+        $usuario = User::findOrFail($id);
+
+        // Validar que el barbero pertenece a la barbería del admin
+        if ($usuario->barberia_id !== $request->user()->barberia_id) {
+            return response()->json(['error' => 'No tienes permiso sobre este barbero.'], 403);
+        }
+
+        if ($request->filled('name'))         $usuario->name         = $request->name;
+        if ($request->filled('hora_inicio'))  $usuario->hora_inicio  = $request->hora_inicio;
+        if ($request->filled('hora_fin'))     $usuario->hora_fin     = $request->hora_fin;
+
+        // Campos nuevos Fase 4A
+        if ($request->has('bio'))          $usuario->bio          = $request->bio;
+        if ($request->has('especialidad')) $usuario->especialidad = $request->especialidad;
+
+        // Avatar
+        if ($request->hasFile('avatar')) {
+            if ($usuario->avatar && Storage::disk('public')->exists($usuario->avatar)) {
+                Storage::disk('public')->delete($usuario->avatar);
+            }
+            $usuario->avatar = $request->file('avatar')->store('avatares', 'public');
+        }
+
+        $usuario->save();
+
+        return response()->json(['mensaje' => 'Barbero actualizado', 'barbero' => $usuario]);
+    }
+
+    public function destroy(Request $request, $id)
+    {
+        $usuario = User::findOrFail($id);
+
+        if ($usuario->barberia_id !== $request->user()->barberia_id) {
+            return response()->json(['error' => 'No tienes permiso.'], 403);
+        }
+
+        // No borramos al usuario; lo "despasamos" a cliente
+        $usuario->rol         = 'cliente';
+        $usuario->barberia_id = null;
+        $usuario->save();
+
+        return response()->json(['mensaje' => 'Barbero removido del equipo']);
     }
 }

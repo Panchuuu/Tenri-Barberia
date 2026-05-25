@@ -1,352 +1,353 @@
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-// 👇 Importamos nuestro portero inteligente
 import apiFetch from "../utils/api";
+import CalendarPicker from "./CalendarPicker";
+import BarberoCard from "./BarberoCard";
+import { XIcon } from "./Icons";
 
-export default function BookingModal({ servicio, barberiaSlug, onClose }) {
-  const [fecha, setFecha] = useState("");
-  const [hora, setHora] = useState("");
-  const [barberoId, setBarberoId] = useState("");
-  const [barberos, setBarberos] = useState([]);
+// ============================================================
+// 📅 BOOKING MODAL — Fase 4A
+// ============================================================
+// Cambios:
+//  - Usa el nuevo BarberoCard con avatar + rating + especialidad
+//  - Soporta modo "reagendar" (recibe citaExistente)
+//  - Muestra mensaje si la fecha está bloqueada (vacaciones del barbero)
+// ============================================================
 
-  // Malla de horarios que se generan dinámicamente
-  const [horariosBase, setHorariosBase] = useState([]);
+export default function BookingModal({
+  servicio,
+  barberiaSlug,
+  citaExistente = null, // si está presente, estamos reagendando
+  onClose,
+  onSuccess,            // callback opcional al completar
+}) {
+  const esReagendar = !!citaExistente;
 
-  // Horas ocupadas por otros clientes
+  const [fecha, setFecha] = useState(citaExistente?.fecha || "");
+  const [hora, setHora]   = useState(citaExistente?.hora?.substring(0, 5) || "");
+  const [barberoId, setBarberoId] = useState(citaExistente?.barbero_id || "");
+
+  const [barberos, setBarberos]           = useState([]);
+  const [horariosBase, setHorariosBase]   = useState([]);
   const [horasOcupadas, setHorasOcupadas] = useState([]);
-  const [cargandoHoras, setCargandoHoras] = useState(false);
-  const [cargandoReserva, setCargandoReserva] = useState(false);
+  const [horasPasadas, setHorasPasadas]   = useState([]);
+  const [diaBloqueado, setDiaBloqueado]   = useState(null); // { motivo, descripcion } si está bloqueado
 
-  // ==========================================
-  // 1. CÁLCULO DE FECHA MÍNIMA (LOCAL CHILE)
-  // ==========================================
-  // Usamos el locale 'sv-SE' que devuelve YYYY-MM-DD exacto según la hora de tu PC
+  const [cargandoBarberos, setCargandoBarberos] = useState(!esReagendar);
+  const [cargandoHoras, setCargandoHoras]       = useState(false);
+  const [cargandoReserva, setCargandoReserva]   = useState(false);
+
   const hoyLocal = new Date().toLocaleDateString("sv-SE");
 
+  // Cargar barberos al abrir (solo si no es reagendamiento)
   useEffect(() => {
-    const obtenerBarberos = async () => {
+    if (esReagendar) return;
+    let activo = true;
+    (async () => {
       try {
-        // 👇 Uso de apiFetch: URL limpia y sin headers
-        const respuesta = await apiFetch(`/barberos?barberia=${barberiaSlug}`);
-        if (respuesta.ok) setBarberos(await respuesta.json());
-      } catch (error) {
-        console.error(error);
-      }
-    };
-    obtenerBarberos();
-  }, [barberiaSlug]);
+        const r = await apiFetch(`/barberos?barberia=${barberiaSlug}`);
+        if (r.ok && activo) setBarberos(await r.json());
+      } catch (e) { console.error(e); }
+      finally { if (activo) setCargandoBarberos(false); }
+    })();
+    return () => { activo = false; };
+  }, [barberiaSlug, esReagendar]);
 
-  // ==========================================
-  // 2. MOTOR DE DISPONIBILIDAD INTELIGENTE
-  // ==========================================
+  // Cargar disponibilidad cuando hay barbero+fecha
   useEffect(() => {
-    const obtenerHorasOcupadas = async () => {
-      if (!barberoId || !fecha) {
-        setHorasOcupadas([]);
-        setHorariosBase([]);
-        return;
-      }
+    if (!barberoId || !fecha) {
+      setHorasOcupadas([]); setHorasPasadas([]); setHorariosBase([]); setDiaBloqueado(null);
+      return;
+    }
+    let activo = true;
+    setCargandoHoras(true);
+    if (!esReagendar) setHora(""); // en reagendar mantenemos la hora hasta que cambien
 
-      setCargandoHoras(true);
-      setHora("");
-
+    (async () => {
       try {
-        // 👇 Uso de apiFetch: URL limpia
-        const res = await apiFetch(`/barberos/${barberoId}/disponibilidad?fecha=${fecha}`);
+        const r = await apiFetch(`/barberos/${barberoId}/disponibilidad?fecha=${fecha}`);
+        if (!r.ok || !activo) return;
 
-        if (res.ok) {
-          const datos = await res.json();
+        const datos = await r.json();
 
-          // Guardamos las horas ocupadas que vienen de la DB
-          setHorasOcupadas(datos.ocupadas);
-
-          // 👇👇 NUEVA LÓGICA DE MALLA DINÁMICA 👇👇
-
-          // 1. Separamos las horas y los minutos que vienen del backend
-          const [horaI, minI] = datos.hora_inicio.split(":").map(Number);
-          const [horaF, minF] = datos.hora_fin.split(":").map(Number);
-
-          // 2. Convertimos todo a "minutos transcurridos desde las 00:00"
-          // Esto hace que la matemática de tiempos sea sumamente fácil
-          let minutosActuales = horaI * 60 + minI;
-          const minutosFin = horaF * 60 + minF;
-
-          const mallaDinamica = [];
-
-          // 3. Mientras no lleguemos a la hora de salida del barbero...
-          while (minutosActuales < minutosFin) {
-            // 4. BLOQUEO DE COLACIÓN (14:00 a 14:59)
-            // 14 * 60 = 840 minutos | 15 * 60 = 900 minutos
-            if (minutosActuales >= 840 && minutosActuales < 900) {
-              minutosActuales += 30; // Avanzamos 30 mins y saltamos este ciclo
-              continue;
-            }
-
-            // 5. Convertimos los minutos de vuelta a formato bonito de reloj (HH:mm)
-            const h = Math.floor(minutosActuales / 60)
-              .toString()
-              .padStart(2, "0");
-            const m = (minutosActuales % 60).toString().padStart(2, "0");
-
-            // Agregamos la hora generada a nuestra malla
-            mallaDinamica.push(`${h}:${m}`);
-
-            // 6. Avanzamos el reloj. (Nuestra barbería opera con bloques base de 30 mins)
-            minutosActuales += 30;
-          }
-
-          setHorariosBase(mallaDinamica);
+        if (datos.bloqueado) {
+          setDiaBloqueado({ motivo: datos.motivo, descripcion: datos.descripcion });
+          setHorariosBase([]);
+          setHorasOcupadas([]); setHorasPasadas([]);
+          return;
         }
-      } catch (error) {
-        console.error("Error al buscar horas:", error);
-      } finally {
-        setCargandoHoras(false);
-      }
-    };
 
-    obtenerHorasOcupadas();
-  }, [barberoId, fecha]);
+        setDiaBloqueado(null);
+        setHorasOcupadas(datos.ocupadas || []);
+        setHorasPasadas(datos.pasadas || []);
 
-  const handleReservar = async (e) => {
+        const [hi, mi] = datos.hora_inicio.split(":").map(Number);
+        const [hf, mf] = datos.hora_fin.split(":").map(Number);
+        let actual = hi * 60 + mi;
+        const fin  = hf * 60 + mf;
+        const malla = [];
+
+        while (actual < fin) {
+          if (actual >= 840 && actual < 900) { actual += 30; continue; }
+          const h = Math.floor(actual / 60).toString().padStart(2, "0");
+          const m = (actual % 60).toString().padStart(2, "0");
+          malla.push(`${h}:${m}`);
+          actual += 30;
+        }
+        if (activo) setHorariosBase(malla);
+      } catch (e) { console.error(e); }
+      finally { if (activo) setCargandoHoras(false); }
+    })();
+    return () => { activo = false; };
+  }, [barberoId, fecha, esReagendar]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Mantenemos esta validación local para no disparar peticiones al backend si no hay token
-    const token = localStorage.getItem("token");
-    if (!token) return toast.error("Inicia sesión para agendar.");
-    if (!fecha || !hora || !barberoId)
-      return toast.error("Completa todos los campos.");
+    if (!localStorage.getItem("token")) return toast.error("Inicia sesión para agendar.");
+    if (!fecha || !hora || !barberoId)   return toast.error("Completa todos los campos.");
 
     setCargandoReserva(true);
     try {
-      // 👇 Uso de apiFetch: No necesitamos mandar los headers ni el token manualmente, apiFetch lo hace por nosotros
-      const respuesta = await apiFetch("/citas", {
-        method: "POST",
-        body: JSON.stringify({
-          servicio_id: servicio.id,
-          barbero_id: barberoId,
-          fecha,
-          hora,
-        }),
-      });
-      
-      if (respuesta.ok) {
-        toast.success("¡Cita agendada con éxito!");
-        onClose();
+      // 🔄 Reagendar usa endpoint distinto
+      if (esReagendar) {
+        const r = await apiFetch(`/citas/${citaExistente.id}/reagendar`, {
+          method: "PATCH",
+          body: JSON.stringify({ fecha, hora }),
+        });
+        if (r.ok) {
+          toast.success("¡Cita reagendada con éxito!");
+          onSuccess?.();
+          onClose();
+        } else {
+          const err = await r.json();
+          toast.error(err.error || err.message || "No se pudo reagendar.");
+        }
       } else {
-        const err = await respuesta.json();
-        toast.error(err.message || "Hubo un problema al agendar.");
+        const r = await apiFetch("/citas", {
+          method: "POST",
+          body: JSON.stringify({ servicio_id: servicio.id, barbero_id: barberoId, fecha, hora }),
+        });
+        if (r.ok) {
+          toast.success("¡Cita agendada con éxito!");
+          onSuccess?.();
+          onClose();
+        } else {
+          const err = await r.json();
+          toast.error(err.message || "Error al agendar.");
+        }
       }
-    } catch (error) {
+    } catch {
       toast.error("Error de conexión.");
     } finally {
       setCargandoReserva(false);
     }
   };
 
-  // Helpers visuales
-  const precioFormateado = new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-  }).format(servicio.precio);
-  
-  const XIcon = () => (
-    <svg
-      className="w-5 h-5"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="18" y1="6" x2="6" y2="18"></line>
-      <line x1="6" y1="6" x2="18" y2="18"></line>
-    </svg>
+  const precioFmt = servicio?.precio
+    ? new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(servicio.precio)
+    : "";
+
+  const pasoActivo = !barberoId ? 1 : !fecha ? 2 : !hora ? 3 : 4;
+
+  const StepHeader = ({ num, label, activo, completo }) => (
+    <div className="flex items-center gap-3 mb-4">
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+        completo
+          ? "bg-emerald-500 text-white dark:text-[#03070e]"
+          : activo
+            ? "bg-slate-900 dark:bg-white text-white dark:text-[#03070e] ring-2 ring-emerald-500/30 ring-offset-2 ring-offset-white dark:ring-offset-[#0B1221]"
+            : "bg-slate-100 dark:bg-slate-800 text-slate-400"
+      }`}>
+        {completo ? (
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        ) : num}
+      </div>
+      <h3 className={`text-sm font-semibold uppercase tracking-wider transition-colors ${
+        activo || completo ? "text-slate-900 dark:text-white" : "text-slate-400"
+      }`}>
+        {label}
+      </h3>
+    </div>
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 dark:bg-[#03070e]/80 backdrop-blur-sm p-4 animate-fade-in transition-colors">
-      <div className="bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800/60 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] transition-colors">
-        {/* CABECERA */}
-        <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800/60 flex justify-between items-start bg-slate-50 dark:bg-[#080d18]">
-          <div className="flex gap-5 items-center">
-            {servicio.imagen_url ? (
-              <img
-                src={servicio.imagen_url}
-                alt={servicio.nombre}
-                className="w-20 h-20 rounded-xl object-cover border border-slate-200 dark:border-slate-700/50 shadow-sm"
-              />
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-[#03070e]/80 backdrop-blur-md p-0 sm:p-4 animate-fade-in">
+      <div
+        className="bg-white dark:bg-[#0B1221] border-t sm:border border-slate-200 dark:border-slate-800/60 sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* HEADER */}
+        <div className="px-6 sm:px-8 py-6 border-b border-slate-200 dark:border-slate-800/60 flex justify-between items-start gap-4 bg-gradient-to-br from-slate-50 to-white dark:from-[#080d18] dark:to-[#0B1221]">
+          <div className="flex gap-4 sm:gap-5 items-center min-w-0">
+            {servicio?.imagen_url ? (
+              <img src={servicio.imagen_url} alt={servicio.nombre}
+                   className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border border-slate-200 dark:border-slate-700/50 shadow-sm shrink-0" />
             ) : (
-              <div className="w-20 h-20 rounded-xl bg-slate-200 dark:bg-[#03070e] flex items-center justify-center border border-slate-300 dark:border-slate-700/50 text-slate-400">
-                <svg
-                  className="w-8 h-8"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"
-                  ></path>
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-500/10 dark:to-emerald-500/5 flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shrink-0">
+                <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"
+                        d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
                 </svg>
               </div>
             )}
-            <div>
-              <span className="text-emerald-600 dark:text-emerald-500 text-[10px] font-bold uppercase tracking-widest mb-1 block">
-                Reservar Servicio
+            <div className="min-w-0">
+              <span className="text-emerald-600 dark:text-emerald-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block">
+                {esReagendar ? "Reagendar cita" : "Reservar servicio"}
               </span>
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
-                {servicio.nombre}
+              <h2 className="font-display text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-tight truncate">
+                {servicio?.nombre}
               </h2>
-              <div className="flex items-center gap-3 mt-2 text-sm font-medium">
-                <span className="text-slate-500 dark:text-slate-400">
-                  {servicio.duracion} min
-                </span>
-                <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
-                <span className="text-emerald-600 dark:text-emerald-400">
-                  {precioFormateado}
-                </span>
-              </div>
+              {!esReagendar && (
+                <div className="flex items-center gap-3 mt-2 text-sm font-medium">
+                  <span className="text-slate-500 dark:text-slate-400 tabular">
+                    {servicio?.duracion || servicio?.duracion_minutos} min
+                  </span>
+                  <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold tabular">{precioFmt}</span>
+                </div>
+              )}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:text-slate-500 dark:hover:text-rose-400 dark:hover:bg-slate-800/50 rounded-lg transition-colors shrink-0 mt-1"
-          >
+          <button onClick={onClose} aria-label="Cerrar"
+                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-rose-400 dark:hover:bg-slate-800/50 rounded-full transition-colors shrink-0">
             <XIcon />
           </button>
         </div>
 
-        <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-          <form
-            id="form-reserva"
-            onSubmit={handleReservar}
-            className="space-y-8"
-          >
-            {/* 1. SELECCIÓN DE Barberos */}
-            <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 block">
-                1. Elige a tu Barbero
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {barberos.map((barbero) => (
-                  <div
-                    key={barbero.id}
-                    onClick={() => setBarberoId(barbero.id)}
-                    className={`cursor-pointer border rounded-xl p-4 flex items-center gap-3 transition-all ${barberoId === barbero.id ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : "border-slate-200 dark:border-slate-700/50 bg-white dark:bg-[#03070e] hover:border-slate-300 dark:hover:border-slate-500"}`}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${barberoId === barbero.id ? "bg-emerald-500 text-white dark:text-[#03070e]" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"}`}
-                    >
-                      {barbero.name.substring(0, 1).toUpperCase()}
-                    </div>
-                    <span
-                      className={`text-sm font-medium transition-colors ${barberoId === barbero.id ? "text-emerald-700 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300"}`}
-                    >
-                      {barbero.name}
-                    </span>
+        {/* CONTENIDO */}
+        <div className="overflow-y-auto custom-scrollbar flex-1 p-6 sm:p-8">
+          <form id="form-reserva" onSubmit={handleSubmit} className="space-y-8">
+
+            {/* PASO 1 — BARBERO (oculto en reagendar) */}
+            {!esReagendar && (
+              <section>
+                <StepHeader num={1} label="Elige tu barbero" activo={pasoActivo === 1} completo={!!barberoId} />
+                {cargandoBarberos ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[1,2,3,4].map((i) => <div key={i} className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800/50 shimmer" />)}
                   </div>
-                ))}
-              </div>
-            </div>
+                ) : barberos.length === 0 ? (
+                  <p className="text-sm text-slate-500 py-4">Esta barbería aún no tiene barberos disponibles.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {barberos.map((b) => (
+                      <BarberoCard
+                        key={b.id}
+                        barbero={b}
+                        selected={barberoId === b.id}
+                        onClick={() => setBarberoId(b.id)}
+                        compact
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
 
-            {/* 2. SELECCIÓN DE FECHA (CON MIN LOCAL) */}
-            <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 block">
-                2. Selecciona la Fecha
-              </label>
-              <input
-                type="date"
-                required
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                min={hoyLocal} // ✅ Usa la fecha local de Chile, no la de Londres
-                className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-1 transition-all cursor-pointer dark:[color-scheme:dark]"
-              />
-            </div>
-
-            {/* 3. SELECCIÓN DE HORA CON FILTRO DE "PASADO" */}
-            <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 block">
-                3. Selecciona la Hora
-              </label>
-
-              {!barberoId || !fecha ? (
-                <div className="text-center p-5 border border-dashed border-slate-300 dark:border-slate-700/80 rounded-xl text-slate-500 text-sm font-medium">
-                  Selecciona Barbero y fecha.
-                </div>
-              ) : cargandoHoras ? (
-                <div className="text-center p-5 text-emerald-600 dark:text-emerald-400 text-sm font-bold animate-pulse">
-                  Verificando agenda...
+            {/* PASO 2 — FECHA */}
+            <section>
+              <StepHeader num={esReagendar ? 1 : 2} label="Selecciona la fecha" activo={pasoActivo === 2 || (esReagendar && pasoActivo <= 2)} completo={!!fecha} />
+              {(!barberoId && !esReagendar) ? (
+                <div className="text-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-700/50 rounded-2xl text-slate-400 text-sm">
+                  Primero elige un barbero
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3 animate-fade-in">
+                <CalendarPicker valor={fecha} onChange={setFecha} minFecha={hoyLocal} />
+              )}
+            </section>
+
+            {/* PASO 3 — HORA */}
+            <section>
+              <StepHeader num={esReagendar ? 2 : 3} label="Selecciona la hora" activo={pasoActivo === 3} completo={!!hora} />
+
+              {(!barberoId && !esReagendar) || !fecha ? (
+                <div className="text-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-700/50 rounded-2xl text-slate-400 text-sm">
+                  Primero elige {esReagendar ? "fecha" : "barbero y fecha"}
+                </div>
+              ) : diaBloqueado ? (
+                // 🚫 Día bloqueado por vacaciones del barbero
+                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-6 text-center">
+                  <div className="text-3xl mb-2">🌴</div>
+                  <h4 className="font-display text-base font-bold text-amber-700 dark:text-amber-400 mb-1">
+                    Barbero no disponible
+                  </h4>
+                  <p className="text-sm text-amber-700 dark:text-amber-400/80 capitalize">
+                    Motivo: {diaBloqueado.motivo?.replace('_', ' ')}
+                    {diaBloqueado.descripcion && ` · ${diaBloqueado.descripcion}`}
+                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-500 mt-3">
+                    Selecciona otra fecha
+                  </p>
+                </div>
+              ) : cargandoHoras ? (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {[...Array(8)].map((_, i) => <div key={i} className="h-12 rounded-lg bg-slate-100 dark:bg-slate-800/50 shimmer" />)}
+                </div>
+              ) : horariosBase.length === 0 ? (
+                <p className="text-sm text-slate-500 py-4">No hay horarios disponibles este día.</p>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 animate-fade-in">
                   {horariosBase.map((h) => {
-                    const ahora = new Date();
-                    const horaActual = ahora.getHours();
-                    const minutosActuales = ahora.getMinutes();
-                    const [hHora, hMin] = h.split(":").map(Number);
-
-                    // LÓGICA DE BLOQUEO:
-                    // 1. Si la hora ya está en la lista de 'ocupadas' de la DB.
-                    // 2. Si la fecha seleccionada es 'hoy' y la hora del bloque ya pasó (o es la hora actual).
-                    const estaOcupadoEnDB = horasOcupadas.includes(h);
-                    const esHoy = fecha === hoyLocal;
-                    const yaPaso =
-                      esHoy &&
-                      (hHora < horaActual ||
-                        (hHora === horaActual && minutosActuales >= 0));
-
-                    const bloqueado = estaOcupadoEnDB || yaPaso;
-
+                    const estaOcupado = horasOcupadas.includes(h);
+                    const yaPaso      = horasPasadas.includes(h);
+                    const bloqueado   = estaOcupado || yaPaso;
+                    const selected    = hora === h;
                     return (
-                      <div
+                      <button
                         key={h}
+                        type="button"
+                        disabled={bloqueado}
                         onClick={() => !bloqueado && setHora(h)}
-                        className={`border rounded-lg py-2 flex flex-col items-center justify-center transition-all ${
+                        className={`py-3 rounded-lg text-sm font-medium tabular transition-all relative ${
                           bloqueado
-                            ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed dark:border-slate-800/80 dark:bg-[#03070e]/40 dark:text-slate-600 opacity-60"
-                            : hora === h
-                              ? "border-emerald-500 bg-emerald-500 text-white dark:text-[#03070e] shadow-[0_0_10px_rgba(16,185,129,0.3)] scale-[1.02] cursor-pointer"
-                              : "border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-[#03070e] text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 cursor-pointer"
+                            ? "bg-slate-50 dark:bg-slate-900/40 text-slate-300 dark:text-slate-700 cursor-not-allowed"
+                            : selected
+                              ? "bg-emerald-500 text-white dark:text-[#03070e] shadow-md shadow-emerald-500/30 scale-[1.04] font-bold"
+                              : "bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-700/50 text-slate-700 dark:text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-500/5"
                         }`}
                       >
-                        <span
-                          className={`font-medium ${bloqueado ? "line-through decoration-rose-400/50" : ""}`}
-                        >
-                          {h}
-                        </span>
+                        <span className={bloqueado ? "line-through decoration-rose-400/50" : ""}>{h}</span>
                         {bloqueado && (
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400/80 mt-0.5">
-                            {estaOcupadoEnDB ? "NO DISPONIBLE" : "No disp."}
+                          <span className="absolute bottom-0.5 left-0 right-0 text-[8px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400/80">
+                            {estaOcupado ? "Ocupada" : "Pasó"}
                           </span>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               )}
-            </div>
+            </section>
           </form>
         </div>
 
-        <div className="p-6 border-t border-slate-200 dark:border-slate-800/60 bg-slate-50 dark:bg-[#080d18] flex gap-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-6 py-3.5 rounded-xl font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-200 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/50 transition-colors"
-          >
+        {/* FOOTER */}
+        <div className="px-6 sm:px-8 py-4 border-t border-slate-200 dark:border-slate-800/60 bg-slate-50/50 dark:bg-[#080d18] flex gap-3">
+          <button type="button" onClick={onClose}
+                  className="px-5 py-3 rounded-xl font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/50 transition-colors">
             Cancelar
           </button>
-          <button
-            form="form-reserva"
-            type="submit"
-            disabled={cargandoReserva || !hora}
-            className={`flex-1 py-3.5 rounded-xl font-bold text-white dark:text-[#03070e] transition-all shadow-md ${cargandoReserva || !hora ? "bg-slate-400 dark:bg-slate-700 cursor-not-allowed shadow-none" : "bg-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-400 dark:shadow-emerald-900/20 hover:-translate-y-0.5"}`}
-          >
-            {cargandoReserva ? "Procesando..." : "Confirmar Reserva"}
+          <button form="form-reserva" type="submit" disabled={cargandoReserva || !hora}
+                  className={`flex-1 py-3 rounded-xl font-bold text-white dark:text-[#03070e] transition-all shadow-md flex items-center justify-center gap-2 ${
+                    cargandoReserva || !hora
+                      ? "bg-slate-300 dark:bg-slate-700 cursor-not-allowed shadow-none"
+                      : "bg-emerald-500 hover:bg-emerald-600 dark:hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/25 hover:-translate-y-0.5"
+                  }`}>
+            {cargandoReserva ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Procesando...
+              </>
+            ) : (
+              <>
+                {esReagendar ? "Confirmar reagendamiento" : "Confirmar reserva"}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </>
+            )}
           </button>
         </div>
       </div>
