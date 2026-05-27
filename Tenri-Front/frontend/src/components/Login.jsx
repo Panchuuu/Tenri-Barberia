@@ -5,8 +5,17 @@ import { useAuth } from "../context/AuthContext";
 import { XIcon } from "./Icons";
 
 // ============================================================
-// 🔑 LOGIN MODAL — Fase 3 visual
+// 🔑 LOGIN MODAL — Pack 1 (con validación email frontend)
 // ============================================================
+// FIX #1: validar formato email en cliente antes de mandar al backend.
+//
+// El backend ya valida con email:rfc,dns,filter, pero damos feedback
+// visual instantáneo para que el usuario sepa por qué no se aceptó.
+// ============================================================
+
+// Regex RFC 5322 simplificada — exige dominio con punto + TLD de 2+ letras.
+// Esto bloquea "fgaete@tenricl" porque "tenricl" no tiene "."
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 export default function Login({ onClose, onLoginSuccess }) {
   const { login } = useAuth();
@@ -16,9 +25,27 @@ export default function Login({ onClose, onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [emailTocado, setEmailTocado] = useState(false);
+
+  // ✨ Validación en vivo del email
+  const emailValido = !email || EMAIL_REGEX.test(email);
+  const mostrarErrorEmail = emailTocado && !emailValido && email.length > 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 🔧 FIX #1: validar antes de enviar
+    if (!EMAIL_REGEX.test(email)) {
+      toast.error("El correo no es válido. Verifica que tenga un dominio completo (ej: gmail.com).");
+      setEmailTocado(true);
+      return;
+    }
+
+    if (esRegistro && password.length < 8) {
+      toast.error("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+
     setCargando(true);
 
     const endpoint = esRegistro ? "/register" : "/login";
@@ -59,7 +86,6 @@ export default function Login({ onClose, onLoginSuccess }) {
         className="bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800/60 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Decorativo */}
         <div className="absolute -top-32 -right-32 w-64 h-64 bg-emerald-400/20 dark:bg-emerald-600/15 rounded-full blur-[80px] pointer-events-none" />
         <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-cyan-400/10 dark:bg-cyan-600/10 rounded-full blur-[80px] pointer-events-none" />
 
@@ -91,6 +117,7 @@ export default function Login({ onClose, onLoginSuccess }) {
                   </label>
                   <input
                     type="text" required value={nombre}
+                    maxLength={80}
                     onChange={(e) => setNombre(e.target.value)}
                     placeholder="Nicolás Cisternas"
                     className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
@@ -104,10 +131,21 @@ export default function Login({ onClose, onLoginSuccess }) {
                 </label>
                 <input
                   type="email" required value={email}
+                  maxLength={120}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => setEmailTocado(true)}
                   placeholder="tu@correo.com"
-                  className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                  className={`w-full bg-slate-50 dark:bg-[#03070e] border rounded-xl p-3.5 text-sm text-slate-900 dark:text-slate-200 outline-none transition-all ${
+                    mostrarErrorEmail
+                      ? "border-rose-400 dark:border-rose-500/60 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+                      : "border-slate-200 dark:border-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  }`}
                 />
+                {mostrarErrorEmail && (
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1.5 font-medium">
+                    El correo debe tener un dominio completo (ej: gmail.com).
+                  </p>
+                )}
               </div>
 
               <div>
@@ -121,14 +159,14 @@ export default function Login({ onClose, onLoginSuccess }) {
                   minLength={esRegistro ? 8 : 1}
                   className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                 />
-                {esRegistro && <p className="text-[11px] text-slate-500 mt-1.5">Mínimo 8 caracteres.</p>}
+                {esRegistro && <p className="text-[11px] text-slate-500 mt-1.5">Mínimo 8 caracteres, con letras y números.</p>}
               </div>
 
               <button
                 type="submit"
-                disabled={cargando}
+                disabled={cargando || mostrarErrorEmail}
                 className={`w-full py-3.5 rounded-xl font-bold text-white dark:text-[#03070e] transition-all shadow-md flex items-center justify-center gap-2 ${
-                  cargando
+                  cargando || mostrarErrorEmail
                     ? "bg-slate-300 dark:bg-slate-700 cursor-not-allowed"
                     : "bg-slate-900 dark:bg-emerald-500 hover:bg-emerald-500 dark:hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/25 hover:-translate-y-0.5"
                 }`}
@@ -148,7 +186,7 @@ export default function Login({ onClose, onLoginSuccess }) {
               {esRegistro ? "¿Ya tienes cuenta?" : "¿No tienes cuenta?"}{" "}
               <button
                 type="button"
-                onClick={() => { setEsRegistro(!esRegistro); setNombre(""); setPassword(""); }}
+                onClick={() => { setEsRegistro(!esRegistro); setNombre(""); setPassword(""); setEmailTocado(false); }}
                 className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline"
               >
                 {esRegistro ? "Inicia sesión" : "Regístrate"}
