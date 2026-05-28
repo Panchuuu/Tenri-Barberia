@@ -4,6 +4,7 @@ import useApi from "../hooks/useApi";
 import useApiMutation from "../hooks/useApiMutation";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
+import ConfirmModal from "../components/ConfirmModal";
 
 function getBadgeStyle(estado) {
   const estados = {
@@ -19,6 +20,9 @@ export default function BarberoPage() {
   const { usuario } = useAuth();
   const [pagina, setPagina] = useState(1);
 
+  // 🔧 FIX #14: confirmar antes de cancelar
+  const [confirmarCancelar, setConfirmarCancelar] = useState(null);
+
   const { data, cargando, refetch } = useApi(`/barbero/citas?page=${pagina}`, { deps: [pagina] });
   const { ejecutar } = useApiMutation();
 
@@ -29,10 +33,25 @@ export default function BarberoPage() {
   const citasHoy   = citas.filter((c) => c.fecha === hoy && c.estado !== "cancelada" && c.estado !== "finalizada");
   const otrasCitas = citas.filter((c) => c.fecha !== hoy || c.estado === "cancelada" || c.estado === "finalizada");
 
-  const handleEstado = async (id, nuevoEstado) => {
-    const r = await ejecutar(`/citas/${id}/estado`, { method: "PATCH", body: { estado: nuevoEstado } });
-    if (r) { toast.success(`Cita ${nuevoEstado}`); refetch(); }
-    else toast.error("Error al actualizar");
+  const handleFinalizar = async (id) => {
+    const r = await ejecutar(`/citas/${id}/estado`, { method: "PATCH", body: { estado: "finalizada" } });
+    if (r) { toast.success("Cita finalizada"); refetch(); }
+    else toast.error("No se pudo finalizar");
+  };
+
+  const handleConfirmarCancelar = async () => {
+    if (!confirmarCancelar) return;
+    const r = await ejecutar(`/citas/${confirmarCancelar.id}/estado`, {
+      method: "PATCH",
+      body: { estado: "cancelada" },
+    });
+    if (r) {
+      toast.success("Cita cancelada. Se notificó al cliente.");
+      refetch();
+    } else {
+      toast.error("No se pudo cancelar. Verifica que tengas permiso.");
+    }
+    setConfirmarCancelar(null);
   };
 
   return (
@@ -81,13 +100,14 @@ export default function BarberoPage() {
 
                     <div className="flex gap-2 pt-4 border-t border-slate-100 dark:border-slate-800/50">
                       <button
-                        onClick={() => handleEstado(c.id, "finalizada")}
+                        onClick={() => handleFinalizar(c.id)}
                         className="flex-1 py-2 bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white dark:bg-emerald-500/10 dark:hover:bg-emerald-500 dark:text-emerald-500 dark:hover:text-[#03070e] text-xs font-bold rounded-lg transition-all border border-emerald-200 dark:border-emerald-500/20"
                       >
                         Finalizar
                       </button>
                       <button
-                        onClick={() => handleEstado(c.id, "cancelada")}
+                        onClick={() => setConfirmarCancelar(c)}
+                        title="Cancelar cita (avisa al cliente)"
                         className="px-3 py-2 bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 dark:text-rose-500 dark:hover:text-white rounded-lg transition-all border border-rose-200 dark:border-rose-500/20"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
@@ -107,7 +127,7 @@ export default function BarberoPage() {
 
             <div className="bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800/60 rounded-2xl overflow-hidden shadow-sm">
 
-              {/* 💻 DESKTOP: tabla */}
+              {/* DESKTOP */}
               <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 dark:bg-[#080d18] border-b border-slate-200 dark:border-slate-800/60 text-slate-500 font-semibold uppercase text-[10px] tracking-widest">
@@ -117,6 +137,7 @@ export default function BarberoPage() {
                       <th className="px-6 py-4">Cliente</th>
                       <th className="px-6 py-4">Servicio</th>
                       <th className="px-6 py-4 text-center">Estado</th>
+                      <th className="px-6 py-4 text-right">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
@@ -131,13 +152,24 @@ export default function BarberoPage() {
                             {c.estado}
                           </span>
                         </td>
+                        <td className="px-6 py-4 text-right">
+                          {/* 🔧 FIX #14: barbero puede cancelar futuras confirmadas */}
+                          {c.estado === "confirmada" && c.fecha >= hoy && (
+                            <button
+                              onClick={() => setConfirmarCancelar(c)}
+                              className="text-rose-600 dark:text-rose-500 font-bold text-xs uppercase tracking-wider hover:underline"
+                            >
+                              Cancelar
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* 📱 MOBILE: cards stacked */}
+              {/* MOBILE */}
               <div className="lg:hidden divide-y divide-slate-100 dark:divide-slate-800/40">
                 {otrasCitas.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 text-sm">
@@ -156,6 +188,15 @@ export default function BarberoPage() {
                           {c.cliente?.name}
                         </p>
                         <p className="text-xs text-slate-500 truncate">{c.servicio?.nombre}</p>
+                        {/* FIX #14: botón cancelar también en mobile */}
+                        {c.estado === "confirmada" && c.fecha >= hoy && (
+                          <button
+                            onClick={() => setConfirmarCancelar(c)}
+                            className="mt-2 text-rose-600 dark:text-rose-500 font-bold text-[10px] uppercase tracking-wider"
+                          >
+                            Cancelar cita
+                          </button>
+                        )}
                       </div>
                       <span className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold uppercase border ${getBadgeStyle(c.estado)}`}>
                         {c.estado}
@@ -191,6 +232,21 @@ export default function BarberoPage() {
           </section>
         </div>
       )}
+
+      {/* MODAL de confirmación de cancelación */}
+      <ConfirmModal
+        abierto={confirmarCancelar !== null}
+        titulo="Cancelar cita"
+        mensaje={
+          confirmarCancelar
+            ? `¿Seguro que quieres cancelar la cita de ${confirmarCancelar.cliente?.name} (${confirmarCancelar.fecha} ${confirmarCancelar.hora?.substring(0,5)})? Se le enviará un email al cliente avisándole.`
+            : ""
+        }
+        textoConfirmar="Sí, cancelar"
+        variante="danger"
+        onConfirmar={handleConfirmarCancelar}
+        onCancelar={() => setConfirmarCancelar(null)}
+      />
     </div>
   );
 }

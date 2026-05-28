@@ -5,6 +5,7 @@ import useApiMutation from "../../hooks/useApiMutation";
 import PageHeader from "../../components/PageHeader";
 import ConfirmModal from "../../components/ConfirmModal";
 import { StarRating } from "../../components/BarberoCard";
+import ImageUploader from "../../components/ImageUploader";
 
 const FORM_VACIO = {
   nombre: "",
@@ -167,14 +168,12 @@ export default function EquipoPage() {
                   <p className="text-[11px] text-slate-500 mt-1 text-right">{form.bio.length}/500</p>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
-                    Foto del barbero
-                  </label>
-                  <input type="file" accept="image/*"
-                         onChange={(e) => setForm({ ...form, avatar_archivo: e.target.files[0] })}
-                         className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-500/10 file:text-emerald-500 hover:file:bg-emerald-500/20 cursor-pointer" />
-                </div>
+                <ImageUploader
+                  label="Foto del barbero"
+                  shape="circle"
+                  previewActual={barberoEditando?.avatar_url || null}
+                  onChange={(file) => setForm({ ...form, avatar_archivo: file })}
+                />
               </>
             )}
 

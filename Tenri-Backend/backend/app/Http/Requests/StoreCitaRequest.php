@@ -17,21 +17,28 @@ class StoreCitaRequest extends FormRequest
 
     public function rules(): array
     {
+        // ============================================================
+        // 🔒 FIX #13: límite de fechas futuras
+        // ============================================================
+        // - after_or_equal:today  → no se puede agendar en el pasado
+        // - before_or_equal:+90d  → máximo 90 días en el futuro (3 meses)
+        // ============================================================
+        $fechaMaxima = now()->addDays(90)->toDateString();
+
         return [
             'servicio_id' => 'required|exists:servicios,id',
-            // El barbero debe existir Y tener rol "barbero"
+            // 🔒 FASE 1: el barbero debe existir Y tener rol "barbero".
             'barbero_id'  => [
                 'required',
                 Rule::exists('users', 'id')->where(fn ($q) => $q->where('rol', 'barbero')),
             ],
-            // Fecha real, no en el pasado
-            'fecha'       => 'required|date|after_or_equal:today',
+            'fecha'       => "required|date|after_or_equal:today|before_or_equal:{$fechaMaxima}",
             'hora'        => 'required|date_format:H:i',
         ];
     }
 
     /**
-     * 🔒 FIX FASE 1:
+     * 🔒 FASE 1:
      * Validación extra: el barbero seleccionado DEBE pertenecer
      * a la misma barbería que el servicio reservado.
      * Esto evita reservas inconsistentes entre tenants.
@@ -62,13 +69,16 @@ class StoreCitaRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'servicio_id.required' => 'Debes seleccionar un servicio.',
-            'barbero_id.required'  => 'Debes seleccionar un barbero.',
-            'barbero_id.exists'    => 'El barbero seleccionado no es válido.',
-            'fecha.required'       => 'La fecha de la reserva es obligatoria.',
-            'fecha.after_or_equal' => 'La fecha no puede ser anterior a hoy.',
-            'hora.required'        => 'La hora de la reserva es obligatoria.',
-            'hora.date_format'     => 'La hora debe tener formato HH:MM.',
+            'servicio_id.required'  => 'Debes seleccionar un servicio.',
+            'servicio_id.exists'    => 'El servicio seleccionado no existe.',
+            'barbero_id.required'   => 'Debes seleccionar un barbero.',
+            'barbero_id.exists'     => 'El barbero seleccionado no es válido.',
+            'fecha.required'        => 'La fecha de la reserva es obligatoria.',
+            'fecha.date'            => 'La fecha no tiene un formato válido.',
+            'fecha.after_or_equal'  => 'No puedes agendar en fechas pasadas.',
+            'fecha.before_or_equal' => 'Solo puedes agendar hasta 90 días en el futuro.',
+            'hora.required'         => 'La hora de la reserva es obligatoria.',
+            'hora.date_format'      => 'La hora debe tener formato HH:MM (ej: 14:30).',
         ];
     }
 }

@@ -15,48 +15,40 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * ============================================================
+ * CitaController — Pack 1 de fixes
+ * ============================================================
+ * Cambios respecto a Fase 4A:
+ *   - FIX #13: límite de 90 días futuros en reagendar (igual que store)
+ *   - FIX #13: al reagendar NO se sobrescribe el estado (si era
+ *              "pendiente", queda pendiente; antes pasaba a "confirmada"
+ *              porque el front lo enviaba en otro endpoint)
+ *   - FIX #14: barbero puede cancelar sus propias citas confirmadas
+ *              vía updateEstado() con permiso explícito
+ * ============================================================
+ */
 class CitaController extends Controller
 {
-    /**
-     * 🔍 FASE 4A: filtros y búsqueda en la agenda admin
-     *
-     * Query params soportados:
-     *   ?desde=2026-05-01
-     *   ?hasta=2026-05-31
-     *   ?barbero_id=5
-     *   ?estado=confirmada
-     *   ?q=juan (busca en nombre del cliente)
-     *   ?page=1
-     */
     public function index(Request $request)
     {
         $query = Cita::with(['cliente', 'barbero', 'servicio'])
             ->where('barberia_id', $request->user()->barberia_id);
 
-        if ($request->filled('desde')) {
-            $query->whereDate('fecha', '>=', $request->desde);
-        }
-        if ($request->filled('hasta')) {
-            $query->whereDate('fecha', '<=', $request->hasta);
-        }
-        if ($request->filled('barbero_id')) {
-            $query->where('barbero_id', $request->barbero_id);
-        }
-        if ($request->filled('estado')) {
-            $query->where('estado', $request->estado);
-        }
+        if ($request->filled('desde'))      $query->whereDate('fecha', '>=', $request->desde);
+        if ($request->filled('hasta'))      $query->whereDate('fecha', '<=', $request->hasta);
+        if ($request->filled('barbero_id')) $query->where('barbero_id', $request->barbero_id);
+        if ($request->filled('estado'))     $query->where('estado', $request->estado);
+
         if ($request->filled('q')) {
             $q = $request->q;
             $query->whereHas('cliente', fn ($sub) =>
-                $sub->where('name', 'like', "%{$q}%")
-                    ->orWhere('email', 'like', "%{$q}%")
+                $sub->where('name', 'like', "%{$q}%")->orWhere('email', 'like', "%{$q}%")
             );
         }
 
-        $citas = $query->orderBy('fecha', 'desc')
-            ->orderBy('hora', 'asc')
-            ->paginate(10)
-            ->withQueryString();
+        $citas = $query->orderBy('fecha', 'desc')->orderBy('hora', 'asc')
+            ->paginate(10)->withQueryString();
 
         return response()->json($citas);
     }
@@ -65,10 +57,9 @@ class CitaController extends Controller
     {
         $servicioNuevo = Servicio::findOrFail($request->servicio_id);
 
-        // 🚫 FASE 4A: verificar bloqueos del barbero en la fecha
+        // 🚫 Bloqueos
         $tieneBloqueo = BloqueoHorario::where('barbero_id', $request->barbero_id)
-            ->activoEnFecha($request->fecha)
-            ->exists();
+            ->activoEnFecha($request->fecha)->exists();
 
         if ($tieneBloqueo) {
             return response()->json([
@@ -77,21 +68,19 @@ class CitaController extends Controller
         }
 
         // 🛡️ Anti-choques
-        $horaInicioSolicitada = Carbon::parse($request->hora);
-        $horaFinSolicitada    = $horaInicioSolicitada->copy()->addMinutes($servicioNuevo->duracion);
+        $horaInicio = Carbon::parse($request->hora);
+        $horaFin    = $horaInicio->copy()->addMinutes($servicioNuevo->duracion);
 
         $citasDelDia = Cita::with('servicio')
             ->where('barbero_id', $request->barbero_id)
             ->where('fecha', $request->fecha)
-            ->where('estado', '!=', 'cancelada')
-            ->get();
+            ->where('estado', '!=', 'cancelada')->get();
 
-        foreach ($citasDelDia as $citaExistente) {
-            $duracionExistente = $citaExistente->servicio->duracion ?? 30;
-            $inicioExistente   = Carbon::parse($citaExistente->hora);
-            $finExistente      = $inicioExistente->copy()->addMinutes($duracionExistente);
-
-            if ($horaInicioSolicitada < $finExistente && $horaFinSolicitada > $inicioExistente) {
+        foreach ($citasDelDia as $ce) {
+            $dur     = $ce->servicio->duracion ?? 30;
+            $inicio  = Carbon::parse($ce->hora);
+            $fin     = $inicio->copy()->addMinutes($dur);
+            if ($horaInicio < $fin && $horaFin > $inicio) {
                 return response()->json([
                     'message' => '¡Ups! Este horario acaba de ser reservado por otro cliente.',
                 ], 409);
@@ -124,36 +113,23 @@ class CitaController extends Controller
     {
         $citas = Cita::with(['barbero', 'servicio.barberia'])
             ->where('cliente_id', $request->user()->id)
-            ->orderBy('fecha', 'desc')
-            ->orderBy('hora', 'desc')
-            ->get();
+            ->orderBy('fecha', 'desc')->orderBy('hora', 'desc')->get();
 
         return response()->json($citas);
     }
 
-    /**
-     * 📊 FASE 4A: stats financieras por periodo (hoy, semana, mes, custom)
-     */
     public function resumenFinancieroHoy(Request $request)
     {
         return $this->resumenPorPeriodo($request, 'hoy');
     }
 
-    /**
-     * 📊 FASE 4A: stats financieras por periodo
-     *
-     * Query params:
-     *   ?periodo=hoy|semana|mes  (default: hoy)
-     *   ?desde=YYYY-MM-DD & ?hasta=YYYY-MM-DD  (custom)
-     */
     public function resumenPorPeriodo(Request $request, $periodoDefault = null)
     {
         $periodo = $request->query('periodo', $periodoDefault ?? 'hoy');
 
-        // Calcular rango según el periodo
         if ($request->filled('desde') && $request->filled('hasta')) {
-            $desde = Carbon::parse($request->desde)->startOfDay();
-            $hasta = Carbon::parse($request->hasta)->endOfDay();
+            $desde   = Carbon::parse($request->desde)->startOfDay();
+            $hasta   = Carbon::parse($request->hasta)->endOfDay();
             $periodo = 'custom';
         } else {
             switch ($periodo) {
@@ -176,23 +152,18 @@ class CitaController extends Controller
         $citas = Cita::with(['servicio', 'barbero'])
             ->where('barberia_id', $request->user()->barberia_id)
             ->whereBetween('fecha', [$desde->toDateString(), $hasta->toDateString()])
-            ->where('estado', 'finalizada')
-            ->get();
+            ->where('estado', 'finalizada')->get();
 
-        $totalIngresos    = 0;
+        $total = 0;
         $desgloseBarberos = [];
-        $desglosePorDia   = []; // para graficar
+        $desglosePorDia   = [];
 
-        foreach ($citas as $cita) {
-            if ($cita->servicio && $cita->barbero) {
-                $precio = (int) $cita->servicio->precio;
-                $totalIngresos += $precio;
-
-                $nombre = $cita->barbero->name;
-                $desgloseBarberos[$nombre] = ($desgloseBarberos[$nombre] ?? 0) + $precio;
-
-                $dia = $cita->fecha;
-                $desglosePorDia[$dia] = ($desglosePorDia[$dia] ?? 0) + $precio;
+        foreach ($citas as $c) {
+            if ($c->servicio && $c->barbero) {
+                $precio = (int) $c->servicio->precio;
+                $total += $precio;
+                $desgloseBarberos[$c->barbero->name] = ($desgloseBarberos[$c->barbero->name] ?? 0) + $precio;
+                $desglosePorDia[$c->fecha] = ($desglosePorDia[$c->fecha] ?? 0) + $precio;
             }
         }
 
@@ -203,28 +174,36 @@ class CitaController extends Controller
             'desde'             => $desde->toDateString(),
             'hasta'             => $hasta->toDateString(),
             'cantidad_cortes'   => $citas->count(),
-            'total_ingresos'    => $totalIngresos,
+            'total_ingresos'    => $total,
             'desglose_barberos' => $desgloseBarberos,
             'desglose_por_dia'  => $desglosePorDia,
-            // Backward-compatible aliases
             'fecha'             => $desde->toDateString(),
         ]);
     }
 
     /**
-     * 🔄 FASE 4A: reagendar cita (cambiar fecha y/o hora sin cancelar)
+     * 🔄 Reagendar cita.
+     *
+     * 🔧 FIX #13: límite 90 días futuros + el estado se mantiene
+     *             (no se sobrescribe a "confirmada" automáticamente).
      */
     public function reagendar(Request $request, $id)
     {
+        $fechaMaxima = now()->addDays(90)->toDateString();
+
         $request->validate([
-            'fecha' => 'required|date|after_or_equal:today',
+            'fecha' => "required|date|after_or_equal:today|before_or_equal:{$fechaMaxima}",
             'hora'  => 'required|date_format:H:i',
+        ], [
+            'fecha.after_or_equal'  => 'No puedes reagendar a una fecha pasada.',
+            'fecha.before_or_equal' => 'Solo puedes reagendar hasta 90 días en el futuro.',
+            'hora.date_format'      => 'La hora debe tener formato HH:MM.',
         ]);
 
         $user = $request->user();
         $cita = Cita::with('servicio')->findOrFail($id);
 
-        // 🔒 Validación de propiedad según rol
+        // Permisos
         if ($user->rol === 'cliente' && $cita->cliente_id !== $user->id) {
             return response()->json(['error' => 'No puedes reagendar esta cita.'], 403);
         }
@@ -239,18 +218,16 @@ class CitaController extends Controller
             return response()->json(['error' => 'Esta cita ya no se puede modificar.'], 400);
         }
 
-        // Verificar bloqueos en la nueva fecha
+        // Bloqueos
         $tieneBloqueo = BloqueoHorario::where('barbero_id', $cita->barbero_id)
-            ->activoEnFecha($request->fecha)
-            ->exists();
-
+            ->activoEnFecha($request->fecha)->exists();
         if ($tieneBloqueo) {
             return response()->json([
                 'error' => 'El barbero no está disponible en esa fecha. Elige otra.',
             ], 409);
         }
 
-        // Verificar choque con OTRAS citas (excluyendo ésta misma)
+        // Anti-choques (excluyendo ESTA cita)
         $nuevoInicio = Carbon::parse($request->hora);
         $nuevoFin    = $nuevoInicio->copy()->addMinutes($cita->servicio->duracion ?? 30);
 
@@ -258,14 +235,12 @@ class CitaController extends Controller
             ->where('barbero_id', $cita->barbero_id)
             ->where('fecha', $request->fecha)
             ->where('estado', '!=', 'cancelada')
-            ->where('id', '!=', $cita->id)
-            ->get();
+            ->where('id', '!=', $cita->id)->get();
 
         foreach ($otrasCitas as $otra) {
             $dur    = $otra->servicio->duracion ?? 30;
             $inicio = Carbon::parse($otra->hora);
             $fin    = $inicio->copy()->addMinutes($dur);
-
             if ($nuevoInicio < $fin && $nuevoFin > $inicio) {
                 return response()->json([
                     'error' => 'Ese horario ya está reservado para otra cita.',
@@ -273,6 +248,7 @@ class CitaController extends Controller
             }
         }
 
+        // 🔧 FIX #13: NO sobrescribimos el estado. Si era pendiente queda pendiente.
         $cita->fecha = $request->fecha;
         $cita->hora  = $request->hora;
         $cita->save();
@@ -285,6 +261,17 @@ class CitaController extends Controller
         ]);
     }
 
+    /**
+     * 📝 Cambiar estado de una cita.
+     *
+     * 🔧 FIX #14: barbero puede cancelar sus citas confirmadas/pendientes.
+     *             Antes solo el admin podía cambiar estados.
+     *
+     * Reglas:
+     *  - Admin: cualquier transición sobre citas de su barbería
+     *  - Barbero: solo puede finalizar/cancelar sus propias citas
+     *  - Cliente: no puede usar este endpoint (usa cancelarMiCita)
+     */
     public function updateEstado(Request $request, $id)
     {
         $request->validate([
@@ -294,15 +281,49 @@ class CitaController extends Controller
         $user = $request->user();
         $cita = Cita::findOrFail($id);
 
+        // Cliente no puede usar este endpoint
+        if ($user->rol === 'cliente') {
+            return response()->json(['error' => 'Usa el endpoint de cancelación de cliente.'], 403);
+        }
+
+        // Admin: misma barbería
         if ($user->rol === 'admin' && $cita->barberia_id !== $user->barberia_id) {
             return response()->json(['error' => 'No tienes permiso sobre esta cita.'], 403);
         }
-        if ($user->rol === 'barbero' && $cita->barbero_id !== $user->id) {
-            return response()->json(['error' => 'Esta cita no te pertenece.'], 403);
+
+        // 🔧 FIX #14: barbero puede cancelar/finalizar SUS citas
+        if ($user->rol === 'barbero') {
+            if ($cita->barbero_id !== $user->id) {
+                return response()->json(['error' => 'Esta cita no te pertenece.'], 403);
+            }
+            // Solo permitimos transiciones razonables
+            $transicionesPermitidas = ['confirmada', 'finalizada', 'cancelada'];
+            if (!in_array($request->estado, $transicionesPermitidas)) {
+                return response()->json([
+                    'error' => 'Como barbero solo puedes confirmar, finalizar o cancelar.',
+                ], 403);
+            }
+            // No re-modificar finalizadas
+            if (in_array($cita->estado, ['finalizada', 'cancelada'])) {
+                return response()->json(['error' => 'Esta cita ya no se puede modificar.'], 400);
+            }
         }
 
+        $estadoAnterior = $cita->estado;
         $cita->estado = $request->estado;
         $cita->save();
+
+        // 📧 Si el barbero cancela, avisamos al cliente
+        if ($estadoAnterior !== 'cancelada' && $cita->estado === 'cancelada' && $user->rol === 'barbero') {
+            $cita->load(['servicio', 'cliente']);
+            try {
+                if ($cita->cliente) {
+                    Mail::to($cita->cliente->email)->send(new CitaCanceladaMail($cita));
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Cita cancelada por barbero, pero falló correo al cliente: ' . $e->getMessage());
+            }
+        }
 
         return response()->json([
             'mensaje' => 'Estado actualizado con éxito',
@@ -314,16 +335,12 @@ class CitaController extends Controller
     {
         $citas = Cita::with(['servicio', 'cliente'])
             ->where('barbero_id', $request->user()->id)
-            ->orderBy('fecha', 'desc')
-            ->orderBy('hora', 'desc')
+            ->orderBy('fecha', 'desc')->orderBy('hora', 'desc')
             ->paginate(10);
 
         return response()->json($citas);
     }
 
-    /**
-     * 🚫 FASE 4A: ahora también devuelve los días bloqueados del barbero.
-     */
     public function disponibilidad(Request $request, $id)
     {
         $fecha = $request->query('fecha');
@@ -333,10 +350,8 @@ class CitaController extends Controller
 
         $barbero = User::findOrFail($id);
 
-        // ¿La fecha está bloqueada por vacaciones/día libre?
         $bloqueo = BloqueoHorario::where('barbero_id', $id)
-            ->activoEnFecha($fecha)
-            ->first();
+            ->activoEnFecha($fecha)->first();
 
         if ($bloqueo) {
             return response()->json([
@@ -350,12 +365,10 @@ class CitaController extends Controller
             ]);
         }
 
-        // Cálculo normal
         $citas = Cita::with('servicio')
             ->where('barbero_id', $id)
             ->where('fecha', $fecha)
-            ->where('estado', '!=', 'cancelada')
-            ->get();
+            ->where('estado', '!=', 'cancelada')->get();
 
         $ocupadas = [];
         foreach ($citas as $cita) {
@@ -363,7 +376,6 @@ class CitaController extends Controller
             $horaInicio   = Carbon::parse($cita->hora);
             $horaFin      = $horaInicio->copy()->addMinutes($duracion);
             $tiempoActual = $horaInicio->copy();
-
             while ($tiempoActual < $horaFin) {
                 $ocupadas[] = $tiempoActual->format('H:i');
                 $tiempoActual->addMinutes(30);
@@ -377,7 +389,6 @@ class CitaController extends Controller
             $horaInicioTurno = Carbon::parse($barbero->hora_inicio ?? '10:00', 'America/Santiago');
             $horaFinTurno    = Carbon::parse($barbero->hora_fin    ?? '19:00', 'America/Santiago');
             $horaLimite      = $hoy->copy()->addMinutes(15);
-
             while ($horaInicioTurno < $horaFinTurno) {
                 if ($horaInicioTurno <= $horaLimite) {
                     $pasadas[] = $horaInicioTurno->format('H:i');
@@ -398,8 +409,7 @@ class CitaController extends Controller
     public function cancelarMiCita(Request $request, $id)
     {
         $cita = Cita::with('barberia')
-            ->where('id', $id)
-            ->where('cliente_id', $request->user()->id)
+            ->where('id', $id)->where('cliente_id', $request->user()->id)
             ->firstOrFail();
 
         if (in_array($cita->estado, ['finalizada', 'cancelada'])) {
@@ -430,9 +440,6 @@ class CitaController extends Controller
         return response()->json(['mensaje' => 'Cita cancelada con éxito', 'cita' => $cita]);
     }
 
-    /**
-     * ⭐ FASE 4A: calificar Y actualizar el promedio cacheado del barbero.
-     */
     public function calificar(Request $request, $id)
     {
         $request->validate([
@@ -457,7 +464,6 @@ class CitaController extends Controller
             $cita->comentario   = $request->comentario;
             $cita->save();
 
-            // Recalcular promedio del barbero
             $stats = Cita::where('barbero_id', $cita->barbero_id)
                 ->whereNotNull('calificacion')
                 ->selectRaw('AVG(calificacion) as promedio, COUNT(*) as total')
