@@ -6,6 +6,8 @@ import PageHeader from "../../components/PageHeader";
 import ConfirmModal from "../../components/ConfirmModal";
 import { StarRating } from "../../components/BarberoCard";
 import ImageUploader from "../../components/ImageUploader";
+import CharacterCounter from "../../components/CharacterCounter";
+import { parseApiErrorSync } from "../../utils/parseApiError";
 
 const FORM_VACIO = {
   nombre: "",
@@ -23,7 +25,7 @@ export default function EquipoPage() {
   const [confirmar, setConfirmar] = useState(null);
 
   const { data: barberos, cargando, refetch } = useApi("/mi-equipo");
-  const { ejecutar, cargando: guardando } = useApiMutation();
+  const { ejecutar, cargando: guardando, getLastError } = useApiMutation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,7 +47,12 @@ export default function EquipoPage() {
         setForm(FORM_VACIO);
         setEditandoId(null);
         refetch();
-      } else toast.error("Error al guardar");
+      } else {
+        toast.error(parseApiErrorSync(
+          getLastError()?.body,
+          "Error al guardar el barbero"
+        ));
+      }
     } else {
       // Crear/asignar usa JSON
       const r = await ejecutar("/barberos/asignar", {
@@ -62,7 +69,15 @@ export default function EquipoPage() {
         toast.success("Barbero asignado. Edítalo para agregar bio y foto.");
         setForm(FORM_VACIO);
         refetch();
-      } else toast.error("Error al asignar");
+      } else {
+        // 🎯 Pack 2/D: el backend (AsignarRolRequest) devuelve mensajes
+        // específicos: "No existe ningún usuario con este correo", validación
+        // cross-field de horarios, etc.
+        toast.error(parseApiErrorSync(
+          getLastError()?.body,
+          "Error al asignar el barbero"
+        ));
+      }
     }
   };
 
@@ -83,8 +98,17 @@ export default function EquipoPage() {
   const handleEliminar = async () => {
     if (!confirmar) return;
     const r = await ejecutar(`/barberos/${confirmar}`, { method: "DELETE" });
-    if (r) { toast.success("Barbero removido"); refetch(); }
-    else toast.error("No se pudo remover");
+    if (r) {
+      // Pack 1 (FIX #17): destroy devuelve citas_canceladas + detalle.
+      const detalle = r?.detalle || "Barbero removido del equipo";
+      toast.success(detalle);
+      refetch();
+    } else {
+      toast.error(parseApiErrorSync(
+        getLastError()?.body,
+        "No se pudo remover el barbero"
+      ));
+    }
     setConfirmar(null);
   };
 
@@ -120,11 +144,16 @@ export default function EquipoPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {editandoId && (
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Nombre</label>
+                <div className="flex items-baseline justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Nombre</label>
+                  <CharacterCounter actual={form.nombre.length} max={80} />
+                </div>
                 <input type="text" value={form.nombre}
                        onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                        className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                       required />
+                       required
+                       maxLength={80}
+                       minLength={2} />
               </div>
             )}
 
@@ -134,7 +163,8 @@ export default function EquipoPage() {
                      onChange={(e) => setForm({ ...form, email: e.target.value })}
                      disabled={editandoId !== null}
                      className={`w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all ${editandoId ? "opacity-50 cursor-not-allowed" : ""}`}
-                     required />
+                     required
+                     maxLength={120} />
               {!editandoId && (
                 <p className="text-[11px] text-slate-500 mt-1.5">
                   El usuario debe estar registrado previamente.
@@ -146,9 +176,10 @@ export default function EquipoPage() {
             {editandoId && (
               <>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
-                    Especialidad
-                  </label>
+                  <div className="flex items-baseline justify-between mb-2">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Especialidad</label>
+                    <CharacterCounter actual={form.especialidad.length} max={100} />
+                  </div>
                   <input type="text" value={form.especialidad}
                          onChange={(e) => setForm({ ...form, especialidad: e.target.value })}
                          placeholder="Ej: Cortes clásicos · Fade · Barba"
@@ -157,15 +188,17 @@ export default function EquipoPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
-                    Biografía
-                  </label>
+                  <div className="flex items-baseline justify-between mb-2">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Biografía</label>
+                    {/* 🎯 Pack 2/D: reemplaza contador manual sin colores
+                        por CharacterCounter (amarillo 80%, rojo 100%). */}
+                    <CharacterCounter actual={form.bio.length} max={500} />
+                  </div>
                   <textarea value={form.bio}
                             onChange={(e) => setForm({ ...form, bio: e.target.value })}
                             placeholder="Cuéntale a tus clientes sobre este barbero..."
                             maxLength={500}
                             className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all h-24 resize-none" />
-                  <p className="text-[11px] text-slate-500 mt-1 text-right">{form.bio.length}/500</p>
                 </div>
 
                 <ImageUploader

@@ -108,7 +108,12 @@ export default function PublicLayout() {
                 {/* Saludo solo desktop */}
                 <div className="hidden md:flex items-center gap-2 text-sm">
                   <span className="text-slate-500 dark:text-slate-400">Hola,</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{usuario.name?.split(" ")[0]}</span>
+                  {/* 🔧 FIX #12 (PDF): nombre largo no rompe navbar.
+                      inline-block necesario para que max-w + truncate funcionen
+                      (los <span> inline ignoran max-width). */}
+                  <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[160px] inline-block">
+                    {usuario.name?.split(" ")[0]}
+                  </span>
                 </div>
 
                 {renderRolButton()}

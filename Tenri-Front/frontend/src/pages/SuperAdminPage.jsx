@@ -3,6 +3,8 @@ import toast from "react-hot-toast";
 import useApi from "../hooks/useApi";
 import useApiMutation from "../hooks/useApiMutation";
 import PageHeader from "../components/PageHeader";
+import CharacterCounter from "../components/CharacterCounter";
+import { parseApiErrorSync } from "../utils/parseApiError";
 
 const FORM_VACIO = {
   nombre_barberia: "",
@@ -20,7 +22,7 @@ export default function SuperAdminPage() {
     transformar: (json) => json.data || json,
   });
 
-  const { ejecutar, cargando } = useApiMutation();
+  const { ejecutar, cargando, getLastError } = useApiMutation();
   const barberias = barberiasData || [];
 
   const handleCrear = async (e) => {
@@ -41,7 +43,15 @@ export default function SuperAdminPage() {
       const inputLogo = document.getElementById("input-logo");
       if (inputLogo) inputLogo.value = "";
       refetch();
-    } else toast.error("Error al crear el negocio. Revisa los datos.");
+    } else {
+      // 🎯 Pack 2/D: mostramos el mensaje real del backend
+      // (ej: "Ya existe un usuario con este correo", "El nombre no puede
+      // superar los 60 caracteres", etc.) en vez del toast genérico.
+      toast.error(parseApiErrorSync(
+        getLastError()?.body,
+        "Error al crear el negocio. Revisa los datos."
+      ));
+    }
   };
 
   return (
@@ -66,12 +76,21 @@ export default function SuperAdminPage() {
                 🏢 Datos de la empresa
               </h4>
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Nombre comercial</label>
+                <div className="flex items-baseline justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-500 block">Nombre comercial</label>
+                  {/* 🔧 FIX #8 (PDF): contador visual del límite max:60 del backend.
+                      También previene FIX #12 (nombre largo rompe navbar): si el
+                      input no permite >60, no llega a guardarse y romper el layout. */}
+                  <CharacterCounter actual={form.nombre_barberia.length} max={60} />
+                </div>
                 <input
                   type="text" value={form.nombre_barberia}
                   onChange={(e) => setForm({ ...form, nombre_barberia: e.target.value })}
                   className="w-full bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-amber-500/50"
-                  placeholder="Ej: Barbería VIP" required
+                  placeholder="Ej: Barbería VIP"
+                  required
+                  maxLength={60}
+                  minLength={3}
                 />
               </div>
 
