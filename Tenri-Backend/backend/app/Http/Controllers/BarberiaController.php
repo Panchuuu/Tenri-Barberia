@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreBarberiaRequest;
+use App\Http\Requests\UpdateConfigBarberiaRequest;
 use App\Models\Barberia;
 use App\Models\Servicio;
 use App\Models\User;
@@ -53,12 +54,20 @@ class BarberiaController extends Controller
         return response()->json($barberia);
     }
 
-    public function updateConfig(Request $request)
+    /**
+     * Actualiza configuración de la barbería del admin autenticado.
+     *
+     * 🎯 Pack 2/C: validación migrada a UpdateConfigBarberiaRequest.
+     *    Antes: validate() inline con max:43200 (sin mensajes ES).
+     *    Ahora: el FormRequest valida tiempo_cancelacion 0-43200 minutos
+     *           (30 días) + 4 mensajes en español (required/integer/min/max).
+     *
+     * 🔧 FIX #4 (PDF): "no se limita el tiempo máximo que se puede
+     *    cancelar con anticipación y además da error." Ahora el límite
+     *    superior está enforced y el mensaje de error es claro.
+     */
+    public function updateConfig(UpdateConfigBarberiaRequest $request)
     {
-        $request->validate([
-            'tiempo_cancelacion' => 'required|integer|min:0|max:43200', // hasta 30 días
-        ]);
-
         $barberia = Barberia::findOrFail($request->user()->barberia_id);
         $barberia->tiempo_cancelacion = $request->tiempo_cancelacion;
         $barberia->save();
