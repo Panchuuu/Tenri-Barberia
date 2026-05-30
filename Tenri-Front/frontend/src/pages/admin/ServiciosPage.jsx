@@ -4,6 +4,10 @@ import useApi from "../../hooks/useApi";
 import useApiMutation from "../../hooks/useApiMutation";
 import PageHeader from "../../components/PageHeader";
 import ConfirmModal from "../../components/ConfirmModal";
+import CharacterCounter from "../../components/CharacterCounter";
+import NumberInputClamped from "../../components/NumberInputClamped";
+import ImageUploader from "../../components/ImageUploader";
+import { parseApiErrorSync } from "../../utils/parseApiError";
 
 const FORM_VACIO = {
   nombre: "", precio: "", duracion: "", descripcion: "", imagen_archivo: null,
@@ -15,7 +19,7 @@ export default function ServiciosPage() {
   const [confirmar, setConfirmar] = useState(null);
 
   const { data: servicios, cargando, refetch } = useApi("/mis-servicios");
-  const { ejecutar, cargando: guardando } = useApiMutation();
+  const { ejecutar, cargando: guardando, getLastError } = useApiMutation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,15 +39,26 @@ export default function ServiciosPage() {
       setForm(FORM_VACIO);
       setEditandoId(null);
       refetch();
-    } else toast.error("Error al guardar el servicio");
+    } else {
+      // 🎯 Pack 2/D: mensaje real del backend (ej: "La duración mínima
+      // es de 5 minutos", "El nombre no puede superar los 80 caracteres").
+      toast.error(parseApiErrorSync(
+        getLastError()?.body,
+        "Error al guardar el servicio"
+      ));
+    }
   };
 
   const handleEditar = (s) => {
     setEditandoId(s.id);
     setForm({
       nombre: s.nombre || "",
-      precio: s.precio || "",
-      duracion: s.duracion || s.duracion_minutos || "",
+      // 🎯 Pack 2/D: normalizamos a number para NumberInputClamped.
+      // Number("") = 0 (no deseado), por eso uso conditional explícito.
+      precio:   s.precio   != null && s.precio   !== "" ? Number(s.precio)   : "",
+      duracion: (s.duracion || s.duracion_minutos) != null && (s.duracion || s.duracion_minutos) !== ""
+                  ? Number(s.duracion || s.duracion_minutos)
+                  : "",
       descripcion: s.descripcion || "",
       imagen_archivo: null,
     });
@@ -54,8 +69,15 @@ export default function ServiciosPage() {
   const handleEliminar = async () => {
     if (!confirmar) return;
     const r = await ejecutar(`/servicios/${confirmar}`, { method: "DELETE" });
-    if (r) { toast.success("Servicio eliminado"); refetch(); }
-    else toast.error("No se pudo eliminar");
+    if (r) {
+      toast.success("Servicio eliminado");
+      refetch();
+    } else {
+      toast.error(parseApiErrorSync(
+        getLastError()?.body,
+        "No se pudo eliminar el servicio"
+      ));
+    }
     setConfirmar(null);
   };
 
@@ -74,52 +96,72 @@ export default function ServiciosPage() {
             {editandoId ? "Editar servicio" : "Nuevo servicio"}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* 🔧 FIX #11 (PDF): maxLength + contador visual en nombre */}
             <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Nombre</label>
+              <div className="flex items-baseline justify-between mb-2">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Nombre</label>
+                <CharacterCounter actual={form.nombre.length} max={80} />
+              </div>
               <input
                 type="text" value={form.nombre}
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                required placeholder="Ej: Corte degradado"
+                required
+                placeholder="Ej: Corte degradado"
+                maxLength={80}
+                minLength={2}
               />
             </div>
+
+            {/* 🔧 FIX #6 (PDF): NumberInputClamped previene overflow.
+                Backend B.2: precio integer min:1 max:9999999, duracion integer min:5 max:480. */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Precio</label>
-                <input
-                  type="number" value={form.precio}
-                  onChange={(e) => setForm({ ...form, precio: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all tabular"
-                  required min="0" placeholder="15000"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Duración</label>
-                <input
-                  type="number" value={form.duracion}
-                  onChange={(e) => setForm({ ...form, duracion: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all tabular"
-                  required min="5" placeholder="30 min"
-                />
-              </div>
+              <NumberInputClamped
+                label="Precio"
+                value={form.precio}
+                onChange={(v) => setForm({ ...form, precio: v })}
+                min={1}
+                max={9999999}
+                step={1}
+                placeholder="15000"
+                suffix="$"
+                required
+              />
+              <NumberInputClamped
+                label="Duración"
+                value={form.duracion}
+                onChange={(v) => setForm({ ...form, duracion: v })}
+                min={5}
+                max={480}
+                step={5}
+                placeholder="30"
+                suffix="min"
+                required
+              />
             </div>
+
+            {/* 🔧 FIX #11 (PDF): maxLength + contador en descripción */}
             <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Descripción</label>
+              <div className="flex items-baseline justify-between mb-2">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Descripción</label>
+                <CharacterCounter actual={form.descripcion.length} max={300} />
+              </div>
               <textarea
                 value={form.descripcion}
                 onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                 className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all h-24 resize-none"
                 placeholder="Corte de cabello a tijera o máquina..."
+                maxLength={300}
               />
             </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Foto (opcional)</label>
-              <input
-                type="file" accept="image/*"
-                onChange={(e) => setForm({ ...form, imagen_archivo: e.target.files[0] })}
-                className="w-full bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-500/10 file:text-emerald-500 hover:file:bg-emerald-500/20 cursor-pointer"
-              />
-            </div>
+
+            {/* 🔧 FIX #7 (Pack 1 patrón) + #11: ImageUploader con validación MIME/peso + preview */}
+            <ImageUploader
+              label="Foto (opcional)"
+              shape="square"
+              previewActual={null}
+              onChange={(file) => setForm({ ...form, imagen_archivo: file })}
+            />
 
             <button
               type="submit" disabled={guardando}

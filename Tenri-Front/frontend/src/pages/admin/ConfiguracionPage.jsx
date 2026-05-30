@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import useApi from "../../hooks/useApi";
 import useApiMutation from "../../hooks/useApiMutation";
 import PageHeader from "../../components/PageHeader";
+import { parseApiErrorSync } from "../../utils/parseApiError";
 
 // ============================================================
 // 📄 ADMIN / CONFIGURACIÓN
@@ -10,14 +11,15 @@ import PageHeader from "../../components/PageHeader";
 // Política de tiempo mínimo de cancelación.
 // ============================================================
 
-function Counter({ titulo, valor, onChange, step = 1 }) {
+// 🔧 FIX #6 (PDF): min/max opcionales para clampar valor en botones y input.
+function Counter({ titulo, valor, onChange, step = 1, min = 0, max = Infinity }) {
   return (
     <div className="bg-slate-50 dark:bg-[#03070e] border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 flex flex-col items-center shadow-inner">
       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">{titulo}</span>
       <div className="flex items-center gap-4">
         <button
           type="button"
-          onClick={() => onChange(Math.max(0, valor - step))}
+          onClick={() => onChange(Math.min(max, Math.max(min, valor - step)))}
           className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-emerald-500 hover:text-[#03070e] text-slate-700 dark:text-white flex items-center justify-center font-bold transition-colors"
         >
           −
@@ -25,12 +27,12 @@ function Counter({ titulo, valor, onChange, step = 1 }) {
         <input
           type="number"
           value={valor}
-          onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+          onChange={(e) => onChange(Math.min(max, Math.max(min, parseInt(e.target.value) || min)))}
           className="w-14 text-center bg-transparent text-2xl font-black text-slate-900 dark:text-white outline-none appearance-none"
         />
         <button
           type="button"
-          onClick={() => onChange(valor + step)}
+          onClick={() => onChange(Math.min(max, Math.max(min, valor + step)))}
           className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-emerald-500 hover:text-[#03070e] text-slate-700 dark:text-white flex items-center justify-center font-bold transition-colors"
         >
           +
@@ -42,7 +44,7 @@ function Counter({ titulo, valor, onChange, step = 1 }) {
 
 export default function ConfiguracionPage() {
   const { data: barberia, refetch } = useApi("/mi-barberia");
-  const { ejecutar, cargando: guardando } = useApiMutation();
+  const { ejecutar, cargando: guardando, getLastError } = useApiMutation();
 
   const [tiempoTotal, setTiempoTotal] = useState(60); // minutos
 
@@ -70,7 +72,14 @@ export default function ConfiguracionPage() {
       toast.success("Configuración actualizada");
       refetch();
     } else {
-      toast.error("Error al guardar");
+      // 🎯 Pack 2/D: el backend (UpdateConfigBarberiaRequest) devuelve
+      // mensajes claros: "El tiempo máximo de cancelación es de 30 días
+      // (43.200 minutos).", "El tiempo de cancelación debe ser un número
+      // entero de minutos.", etc.
+      toast.error(parseApiErrorSync(
+        getLastError()?.body,
+        "Error al guardar la configuración"
+      ));
     }
   };
 
@@ -91,9 +100,11 @@ export default function ConfiguracionPage() {
 
         <form onSubmit={handleGuardar} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Counter titulo="Días"    valor={dias}    onChange={(v) => setComponentes(v, horas, minutos)} />
-            <Counter titulo="Horas"   valor={horas}   onChange={(v) => setComponentes(dias, v, minutos)} />
-            <Counter titulo="Minutos" valor={minutos} onChange={(v) => setComponentes(dias, horas, v)} step={15} />
+            {/* 🔧 FIX #6 (PDF): min/max previenen overflow por campo y evitan
+                que tiempoTotal supere los 43200 min del backend (max:43200 B.5). */}
+            <Counter titulo="Días"    valor={dias}    onChange={(v) => setComponentes(v, horas, minutos)} min={0} max={30} />
+            <Counter titulo="Horas"   valor={horas}   onChange={(v) => setComponentes(dias, v, minutos)}  min={0} max={23} />
+            <Counter titulo="Minutos" valor={minutos} onChange={(v) => setComponentes(dias, horas, v)}    min={0} max={59} step={15} />
           </div>
 
           <div className="text-center bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 p-4 rounded-xl text-sm font-medium">
