@@ -61,16 +61,16 @@ export default function MisReservasPage() {
             const puedeReagendar = cita.estado === "pendiente" || cita.estado === "confirmada";
             return (
               <div key={cita.id} className="bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800/60 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-emerald-500/50 transition-all flex flex-col">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
+                <div className="flex justify-between items-start mb-4 gap-3">
+                  <div className="min-w-0 flex-1">
                     <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-500 text-[10px] font-bold uppercase tracking-widest mb-1">
                       {cita.fecha} • {cita.hora?.substring(0, 5)}
                     </span>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate">
                       {cita.servicio?.nombre || "Servicio"}
                     </h3>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getBadgeStyle(cita.estado)}`}>
+                  <span className={`shrink-0 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getBadgeStyle(cita.estado)}`}>
                     {cita.estado}
                   </span>
                 </div>
