@@ -16,7 +16,9 @@ class StoreBarberiaRequest extends FormRequest
         return [
             // 🔧 FIX #8 (PDF): el nombre tenía max:255 (irreal en UI).
             // Bajamos a max:60 con min:3 para evitar nombres absurdos.
-            'nombre_barberia' => 'required|string|min:3|max:60',
+            // 🔧 Hotfix: unique evita duplicados con mensaje amigable.
+            // Nota: valida contra barberias.nombre (no users.name).
+            'nombre_barberia' => 'required|string|min:3|max:60|unique:barberias,nombre',
 
             // Color HEX típico (#RRGGBB = 7 chars). Dejamos 20 por
             // tolerancia a formatos extendidos.
@@ -46,6 +48,7 @@ class StoreBarberiaRequest extends FormRequest
             'nombre_barberia.required' => 'El nombre de la barbería es obligatorio.',
             'nombre_barberia.min'      => 'El nombre debe tener al menos 3 caracteres.',
             'nombre_barberia.max'      => 'El nombre no puede superar los 60 caracteres.',
+            'nombre_barberia.unique'   => 'Ya existe una barbería con ese nombre. Elige otro nombre.',
 
             // Color
             'color_principal.required' => 'El color principal es obligatorio.',
