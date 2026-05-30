@@ -39,6 +39,19 @@ export default function BookingModal({
 
   const hoyLocal = new Date().toLocaleDateString("sv-SE");
 
+  // 🎯 UX: scroll al top cuando el modal se abre.
+  // Previene que el modal quede "flotando" fuera del viewport cuando
+  // el usuario tiene la página scrolleada hacia abajo.
+  // Además bloquea el scroll del body para evitar scroll accidental
+  // detrás del modal mientras está abierto.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
   // Cargar barberos al abrir (solo si no es reagendamiento)
   useEffect(() => {
     if (esReagendar) return;

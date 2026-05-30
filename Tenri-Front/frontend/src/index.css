@@ -284,7 +284,8 @@ h1, h2, h3, .font-display {
 
 /* Aspect ratios útiles */
 .aspect-portrait { aspect-ratio: 3 / 4; }
-.aspect-card     { aspect-ratio: 4 / 5; }
+/* 🎯 UX: reducido de 4/5 portrait a 3/2 landscape para cards más compactas */
+.aspect-card     { aspect-ratio: 3 / 2; }
 .aspect-wide     { aspect-ratio: 16 / 9; }
 
 /* Number variant para precios */
