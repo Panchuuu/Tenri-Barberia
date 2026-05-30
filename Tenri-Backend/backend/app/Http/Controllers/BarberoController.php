@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Cita;
 use App\Models\User;
 use App\Mail\CitaCanceladaMail;
+use App\Http\Requests\AsignarRolRequest;
 use App\Http\Requests\UpdateBarberoRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -46,16 +47,19 @@ class BarberoController extends Controller
         return response()->json(['mensaje' => 'Barbero creado', 'barbero' => $usuario], 201);
     }
 
-    public function asignarRol(Request $request)
+    /**
+     * Asignar rol de barbero a un usuario existente.
+     *
+     * 🎯 Pack 2/C: validación migrada a AsignarRolRequest (FormRequest).
+     * Antes: validate() inline + mensaje custom para email.exists.
+     * Ahora: el FormRequest valida email (rfc,dns,filter,max:120,exists)
+     *        + cross-field hora_fin > hora_inicio (FIX #10)
+     *        + 6 mensajes en español cubriendo todos los casos.
+     */
+    public function asignarRol(AsignarRolRequest $request)
     {
-        $request->validate([
-            'email'       => 'required|email:rfc,dns,filter|max:120|exists:users,email',
-            'hora_inicio' => 'nullable|date_format:H:i',
-            'hora_fin'    => 'nullable|date_format:H:i',
-        ], [
-            'email.exists' => 'No existe ningún usuario con ese correo. Pídele que se registre primero.',
-        ]);
-
+        // El FormRequest ya validó. Llegamos aquí solo si email existe
+        // y los horarios son consistentes.
         $usuario = User::where('email', $request->email)->firstOrFail();
 
         $usuario->rol         = 'barbero';

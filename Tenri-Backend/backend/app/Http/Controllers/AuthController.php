@@ -57,23 +57,60 @@ class AuthController extends Controller
         return response()->json(['mensaje' => 'Sesión cerrada correctamente.']);
     }
 
+    /**
+     * Actualiza el perfil del usuario autenticado.
+     *
+     * 🎯 Pack 2/C: el FormRequest UpdatePerfilRequest ya:
+     *    - Valida con reglas alineadas (Pack 1/Pack 2): email rfc,dns,filter,
+     *      password min:8+regex, avatar mimes consistentes, name max:80.
+     *    - Incluye bio/especialidad SOLO si el rol del usuario es barbero
+     *      (reglas condicionales en UpdatePerfilRequest::rules()).
+     *
+     * 🔧 FIX #15 (PDF): "Barbero no puede cambiar su propia foto de perfil".
+     *    En realidad la foto ya podía cambiarse vía este endpoint. Lo que
+     *    faltaba era persistir bio y especialidad cuando el barbero los
+     *    edita desde su propia página /barbero/perfil (Bloque E del Pack 2).
+     *    Ahora ambos campos se guardan si llegan y el rol es 'barbero'.
+     *
+     * Patrón:
+     *    - $request->validated() para campos del body (filtra todo lo no
+     *      validado, evita mass assignment de cualquier campo extra).
+     *    - $request->hasFile/file para el avatar (multipart, no llega
+     *      vía validated()).
+     */
     public function updatePerfil(UpdatePerfilRequest $request)
     {
         $user = $request->user();
+        $validated = $request->validated();
 
-        $user->name  = $request->name;
-        $user->email = $request->email;
+        // Campos base — siempre presentes (required en el FormRequest).
+        $user->name  = $validated['name'];
+        $user->email = $validated['email'];
 
-        if ($request->filled('password')) {
-            $user->password = Hash::make($request->password);
+        // Password opcional. Solo se hashea si viene presente y no vacío.
+        if (!empty($validated['password'])) {
+            $user->password = Hash::make($validated['password']);
         }
 
+        // Avatar — multipart, se lee directo del request (no de validated).
         if ($request->hasFile('avatar')) {
-            // Borramos el avatar anterior si existía
             if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
                 Storage::disk('public')->delete($user->avatar);
             }
             $user->avatar = $request->file('avatar')->store('avatares', 'public');
+        }
+
+        // 🔧 FIX #15: bio y especialidad solo para barbero.
+        // Doble check defensa-en-profundidad: el FormRequest ya filtra
+        // estos campos por rol, pero validamos el rol aquí también para
+        // prevenir cualquier bypass futuro de la validación.
+        if ($user->rol === 'barbero') {
+            if (array_key_exists('bio', $validated)) {
+                $user->bio = $validated['bio'];
+            }
+            if (array_key_exists('especialidad', $validated)) {
+                $user->especialidad = $validated['especialidad'];
+            }
         }
 
         $user->save();
