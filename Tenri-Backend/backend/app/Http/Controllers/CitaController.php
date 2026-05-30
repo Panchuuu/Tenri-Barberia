@@ -100,8 +100,8 @@ class CitaController extends Controller
         $cita->load(['barbero', 'servicio', 'cliente']);
 
         try {
-            Mail::to($request->user()->email)->send(new CitaConfirmadaMail($cita));
-            Mail::to($cita->barbero->email)->send(new NuevaCitaBarberoMail($cita));
+            Mail::to($request->user()->email)->queue(new CitaConfirmadaMail($cita));
+            Mail::to($cita->barbero->email)->queue(new NuevaCitaBarberoMail($cita));
         } catch (\Throwable $e) {
             \Log::warning('Cita creada OK pero fallaron correos: ' . $e->getMessage());
         }
@@ -318,7 +318,7 @@ class CitaController extends Controller
             $cita->load(['servicio', 'cliente']);
             try {
                 if ($cita->cliente) {
-                    Mail::to($cita->cliente->email)->send(new CitaCanceladaMail($cita));
+                    Mail::to($cita->cliente->email)->queue(new CitaCanceladaMail($cita));
                 }
             } catch (\Throwable $e) {
                 \Log::warning('Cita cancelada por barbero, pero falló correo al cliente: ' . $e->getMessage());
@@ -432,7 +432,7 @@ class CitaController extends Controller
         $cita->load('servicio');
 
         try {
-            Mail::to($request->user()->email)->send(new CitaCanceladaMail($cita));
+            Mail::to($request->user()->email)->queue(new CitaCanceladaMail($cita));
         } catch (\Throwable $e) {
             \Log::warning('Cita cancelada OK pero falló correo: ' . $e->getMessage());
         }
