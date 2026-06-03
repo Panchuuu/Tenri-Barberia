@@ -17,6 +17,7 @@ import BarberiaDetallePage  from "./pages/BarberiaDetallePage";
 
 import MisReservasPage from "./pages/MisReservasPage";
 import BarberoPage     from "./pages/BarberoPage";
+import BarberoPerfilPage from "./pages/BarberoPerfilPage";
 import SuperAdminPage  from "./pages/SuperAdminPage";
 
 import AgendaPage        from "./pages/admin/AgendaPage";
@@ -82,6 +83,7 @@ export default function App() {
                 }
               >
                 <Route index element={<BarberoPage />} />
+                <Route path="perfil" element={<BarberoPerfilPage />} />
               </Route>
 
               {/* SUPERADMIN */}
