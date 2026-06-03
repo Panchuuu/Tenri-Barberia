@@ -39,17 +39,10 @@ export default function BookingModal({
 
   const hoyLocal = new Date().toLocaleDateString("sv-SE");
 
-  // 🎯 UX: scroll al top cuando el modal se abre.
-  // Previene que el modal quede "flotando" fuera del viewport cuando
-  // el usuario tiene la página scrolleada hacia abajo.
-  // Además bloquea el scroll del body para evitar scroll accidental
-  // detrás del modal mientras está abierto.
+  // 🎯 UX: scroll instantáneo al top cuando el modal se abre.
+  // Sin overflow lock — el modal usa fixed inset-0, cubre todo el viewport.
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
+    window.scrollTo(0, 0);
   }, []);
 
   // Cargar barberos al abrir (solo si no es reagendamiento)
@@ -186,7 +179,7 @@ export default function BookingModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-[#03070e]/80 backdrop-blur-md p-0 sm:p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-start justify-center bg-slate-900/40 dark:bg-[#03070e]/80 backdrop-blur-md p-0 sm:p-4 sm:pt-8 animate-fade-in">
       <div
         className="bg-white dark:bg-[#0B1221] border-t sm:border border-slate-200 dark:border-slate-800/60 sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-scale-in"
         onClick={(e) => e.stopPropagation()}
