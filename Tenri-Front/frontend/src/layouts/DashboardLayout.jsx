@@ -1,5 +1,5 @@
 import React from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { SunIcon, MoonIcon, LogOutIcon, HomeIcon } from "../components/Icons";
@@ -9,7 +9,8 @@ import { SunIcon, MoonIcon, LogOutIcon, HomeIcon } from "../components/Icons";
 // ============================================================
 
 export default function DashboardLayout({ titulo, subtitulo }) {
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, esBarbero } = useAuth();
+  const location = useLocation();
   const { esOscuro, toggleTema } = useTheme();
   const navigate = useNavigate();
 
@@ -50,6 +51,27 @@ export default function DashboardLayout({ titulo, subtitulo }) {
             >
               {esOscuro ? <SunIcon className="w-4 h-4" /> : <MoonIcon className="w-4 h-4" />}
             </button>
+
+            {/* 🔧 FIX #15 / Bloque E: nav item Mi perfil ↔ Mi agenda (solo barbero) */}
+            {esBarbero && (
+              location.pathname === "/barbero/perfil" ? (
+                <Link
+                  to="/barbero"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
+                >
+                  <span>📅</span>
+                  <span className="hidden sm:inline">Mi agenda</span>
+                </Link>
+              ) : (
+                <Link
+                  to="/barbero/perfil"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
+                >
+                  <span>👤</span>
+                  <span className="hidden sm:inline">Mi perfil</span>
+                </Link>
+              )
+            )}
 
             <button
               onClick={() => navigate("/")}
