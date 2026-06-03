@@ -16,6 +16,9 @@ export default function ConfirmModal({
   variante = "danger", // "danger" | "primary"
   onConfirmar,
   onCancelar,
+  // 🔧 Bug fix: previene doble-submit al hacer click rápido en confirmar.
+  // Backwards-compatible: default false no afecta a consumidores existentes.
+  cargando = false,
 }) {
   if (!abierto) return null;
 
@@ -32,7 +35,7 @@ export default function ConfirmModal({
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 dark:bg-[#03070e]/80 backdrop-blur-sm animate-fade-in p-4"
-      onClick={onCancelar}
+      onClick={cargando ? undefined : onCancelar}
     >
       <div
         className="bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
@@ -53,15 +56,22 @@ export default function ConfirmModal({
         <div className="flex gap-3 justify-end">
           <button
             onClick={onCancelar}
-            className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            disabled={cargando}
+            className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded-lg transition-colors"
           >
             {textoCancelar}
           </button>
           <button
             onClick={onConfirmar}
-            className={`px-5 py-2.5 font-bold rounded-lg transition-colors shadow-sm ${colorConfirmar}`}
+            disabled={cargando}
+            className={`px-5 py-2.5 font-bold rounded-lg transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 ${colorConfirmar}`}
           >
-            {textoConfirmar}
+            {cargando ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Procesando...
+              </>
+            ) : textoConfirmar}
           </button>
         </div>
       </div>

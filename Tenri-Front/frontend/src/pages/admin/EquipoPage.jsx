@@ -96,7 +96,7 @@ export default function EquipoPage() {
   };
 
   const handleEliminar = async () => {
-    if (!confirmar) return;
+    if (!confirmar || guardando) return;
     const r = await ejecutar(`/barberos/${confirmar}`, { method: "DELETE" });
     if (r) {
       // Pack 1 (FIX #17): destroy devuelve citas_canceladas + detalle.
@@ -316,6 +316,7 @@ export default function EquipoPage() {
 
       <ConfirmModal
         abierto={confirmar !== null}
+        cargando={guardando}
         titulo="Remover barbero"
         mensaje="¿Seguro que deseas remover a este barbero? Sus citas pasadas se mantienen pero ya no recibirá nuevas."
         textoConfirmar="Sí, remover"
