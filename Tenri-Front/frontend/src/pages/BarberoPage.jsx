@@ -59,7 +59,7 @@ export default function BarberoPage() {
       <PageHeader
         tag="Agenda"
         titulo="Mi agenda"
-        subtitulo={`Hola ${usuario?.name}, organiza tu jornada`}
+        subtitulo={`Hola ${usuario?.name}, organiza tu jornada.`}
       />
 
       {cargando ? (
