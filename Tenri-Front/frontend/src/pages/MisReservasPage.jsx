@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import toast from "react-hot-toast";
 import useApi from "../hooks/useApi";
 import useApiMutation from "../hooks/useApiMutation";
+import { parseApiErrorSync } from "../utils/parseApiError";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
@@ -26,13 +27,13 @@ export default function MisReservasPage() {
   const [confirmar, setConfirmar] = useState(null);
 
   const { data: citas, cargando, refetch } = useApi("/mis-reservas");
-  const { ejecutar } = useApiMutation();
+  const { ejecutar, cargando: cancelando, getLastError } = useApiMutation();
 
   const handleCancelar = async () => {
     if (!confirmar) return;
     const r = await ejecutar(`/mis-citas/${confirmar}/cancelar`, { method: "PATCH" });
     if (r) { toast.success("Cita cancelada"); refetch(); }
-    else toast.error("No se pudo cancelar");
+    else toast.error(parseApiErrorSync(getLastError()?.body, "No se pudo cancelar"));
     setConfirmar(null);
   };
 
@@ -152,6 +153,7 @@ export default function MisReservasPage() {
 
       <ConfirmModal
         abierto={confirmar !== null}
+        cargando={cancelando}
         titulo="Cancelar reserva"
         mensaje="¿Estás seguro de que deseas cancelar esta cita? Esta acción no se puede deshacer."
         textoConfirmar="Sí, cancelar"

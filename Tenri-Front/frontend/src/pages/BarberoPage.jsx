@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import toast from "react-hot-toast";
 import useApi from "../hooks/useApi";
 import useApiMutation from "../hooks/useApiMutation";
+import { parseApiErrorSync } from "../utils/parseApiError";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
 import ConfirmModal from "../components/ConfirmModal";
@@ -24,7 +25,7 @@ export default function BarberoPage() {
   const [confirmarCancelar, setConfirmarCancelar] = useState(null);
 
   const { data, cargando, refetch } = useApi(`/barbero/citas?page=${pagina}`, { deps: [pagina] });
-  const { ejecutar } = useApiMutation();
+  const { ejecutar, cargando: cancelando, getLastError } = useApiMutation();
 
   const citas = data?.data || [];
   const paginacion = { actual: data?.current_page || 1, total: data?.last_page || 1 };
@@ -36,7 +37,7 @@ export default function BarberoPage() {
   const handleFinalizar = async (id) => {
     const r = await ejecutar(`/citas/${id}/estado`, { method: "PATCH", body: { estado: "finalizada" } });
     if (r) { toast.success("Cita finalizada"); refetch(); }
-    else toast.error("No se pudo finalizar");
+    else toast.error(parseApiErrorSync(getLastError()?.body, "No se pudo finalizar"));
   };
 
   const handleConfirmarCancelar = async () => {
@@ -49,7 +50,7 @@ export default function BarberoPage() {
       toast.success("Cita cancelada. Se notificó al cliente.");
       refetch();
     } else {
-      toast.error("No se pudo cancelar. Verifica que tengas permiso.");
+      toast.error(parseApiErrorSync(getLastError()?.body, "No se pudo cancelar. Verifica que tengas permiso."));
     }
     setConfirmarCancelar(null);
   };
@@ -236,6 +237,7 @@ export default function BarberoPage() {
       {/* MODAL de confirmación de cancelación */}
       <ConfirmModal
         abierto={confirmarCancelar !== null}
+        cargando={cancelando}
         titulo="Cancelar cita"
         mensaje={
           confirmarCancelar
