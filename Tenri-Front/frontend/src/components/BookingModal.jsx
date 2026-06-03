@@ -247,79 +247,75 @@ export default function BookingModal({
             )}
 
             {/* PASO 2 — FECHA */}
-            <section>
-              <StepHeader num={esReagendar ? 1 : 2} label="Selecciona la fecha" activo={pasoActivo === 2 || (esReagendar && pasoActivo <= 2)} completo={!!fecha} />
-              {(!barberoId && !esReagendar) ? (
-                <div className="text-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-700/50 rounded-2xl text-slate-400 text-sm">
-                  Primero elige un barbero
-                </div>
-              ) : (
+            {/* 🎯 Bug fix: reveal progresivo — Paso 2 aparece solo cuando hay barbero */}
+            {(barberoId || esReagendar) && (
+              <section className="animate-fade-in-up">
+                <StepHeader num={esReagendar ? 1 : 2} label="Selecciona la fecha" activo={pasoActivo === 2 || (esReagendar && pasoActivo <= 2)} completo={!!fecha} />
                 <CalendarPicker valor={fecha} onChange={setFecha} minFecha={hoyLocal} />
-              )}
-            </section>
+              </section>
+            )}
 
             {/* PASO 3 — HORA */}
-            <section>
-              <StepHeader num={esReagendar ? 2 : 3} label="Selecciona la hora" activo={pasoActivo === 3} completo={!!hora} />
+            {/* 🎯 Bug fix: reveal progresivo — Paso 3 aparece solo cuando hay barbero Y fecha */}
+            {((barberoId || esReagendar) && fecha) && (
+              <section className="animate-fade-in-up">
+                <StepHeader num={esReagendar ? 2 : 3} label="Selecciona la hora" activo={pasoActivo === 3} completo={!!hora} />
 
-              {(!barberoId && !esReagendar) || !fecha ? (
-                <div className="text-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-700/50 rounded-2xl text-slate-400 text-sm">
-                  Primero elige {esReagendar ? "fecha" : "barbero y fecha"}
-                </div>
-              ) : diaBloqueado ? (
-                // 🚫 Día bloqueado por vacaciones del barbero
-                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-6 text-center">
-                  <div className="text-3xl mb-2">🌴</div>
-                  <h4 className="font-display text-base font-bold text-amber-700 dark:text-amber-400 mb-1">
-                    Barbero no disponible
-                  </h4>
-                  <p className="text-sm text-amber-700 dark:text-amber-400/80 capitalize">
-                    Motivo: {diaBloqueado.motivo?.replace('_', ' ')}
-                    {diaBloqueado.descripcion && ` · ${diaBloqueado.descripcion}`}
-                  </p>
-                  <p className="text-xs text-amber-600 dark:text-amber-500 mt-3">
-                    Selecciona otra fecha
-                  </p>
-                </div>
-              ) : cargandoHoras ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {[...Array(8)].map((_, i) => <div key={i} className="h-12 rounded-lg bg-slate-100 dark:bg-slate-800/50 shimmer" />)}
-                </div>
-              ) : horariosBase.length === 0 ? (
-                <p className="text-sm text-slate-500 py-4">No hay horarios disponibles este día.</p>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 animate-fade-in">
-                  {horariosBase.map((h) => {
-                    const estaOcupado = horasOcupadas.includes(h);
-                    const yaPaso      = horasPasadas.includes(h);
-                    const bloqueado   = estaOcupado || yaPaso;
-                    const selected    = hora === h;
-                    return (
-                      <button
-                        key={h}
-                        type="button"
-                        disabled={bloqueado}
-                        onClick={() => !bloqueado && setHora(h)}
-                        className={`py-3 rounded-lg text-sm font-medium tabular transition-all relative ${
-                          bloqueado
-                            ? "bg-slate-50 dark:bg-slate-900/40 text-slate-300 dark:text-slate-700 cursor-not-allowed"
-                            : selected
-                              ? "bg-emerald-500 text-white dark:text-[#03070e] shadow-md shadow-emerald-500/30 scale-[1.04] font-bold"
-                              : "bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-700/50 text-slate-700 dark:text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-500/5"
-                        }`}
-                      >
-                        <span className={bloqueado ? "line-through decoration-rose-400/50" : ""}>{h}</span>
-                        {bloqueado && (
-                          <span className="absolute bottom-0.5 left-0 right-0 text-[8px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400/80">
-                            {estaOcupado ? "Ocupada" : "Pasó"}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
+                {diaBloqueado ? (
+                  // 🚫 Día bloqueado por vacaciones del barbero
+                  <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-6 text-center">
+                    <div className="text-3xl mb-2">🌴</div>
+                    <h4 className="font-display text-base font-bold text-amber-700 dark:text-amber-400 mb-1">
+                      Barbero no disponible
+                    </h4>
+                    <p className="text-sm text-amber-700 dark:text-amber-400/80 capitalize">
+                      Motivo: {diaBloqueado.motivo?.replace('_', ' ')}
+                      {diaBloqueado.descripcion && ` · ${diaBloqueado.descripcion}`}
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-3">
+                      Selecciona otra fecha
+                    </p>
+                  </div>
+                ) : cargandoHoras ? (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {[...Array(8)].map((_, i) => <div key={i} className="h-12 rounded-lg bg-slate-100 dark:bg-slate-800/50 shimmer" />)}
+                  </div>
+                ) : horariosBase.length === 0 ? (
+                  <p className="text-sm text-slate-500 py-4">No hay horarios disponibles este día.</p>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 animate-fade-in">
+                    {horariosBase.map((h) => {
+                      const estaOcupado = horasOcupadas.includes(h);
+                      const yaPaso      = horasPasadas.includes(h);
+                      const bloqueado   = estaOcupado || yaPaso;
+                      const selected    = hora === h;
+                      return (
+                        <button
+                          key={h}
+                          type="button"
+                          disabled={bloqueado}
+                          onClick={() => !bloqueado && setHora(h)}
+                          className={`py-3 rounded-lg text-sm font-medium tabular transition-all relative ${
+                            bloqueado
+                              ? "bg-slate-50 dark:bg-slate-900/40 text-slate-300 dark:text-slate-700 cursor-not-allowed"
+                              : selected
+                                ? "bg-emerald-500 text-white dark:text-[#03070e] shadow-md shadow-emerald-500/30 scale-[1.04] font-bold"
+                                : "bg-white dark:bg-[#03070e] border border-slate-200 dark:border-slate-700/50 text-slate-700 dark:text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-500/5"
+                          }`}
+                        >
+                          <span className={bloqueado ? "line-through decoration-rose-400/50" : ""}>{h}</span>
+                          {bloqueado && (
+                            <span className="absolute bottom-0.5 left-0 right-0 text-[8px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400/80">
+                              {estaOcupado ? "Ocupada" : "Pasó"}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
           </form>
         </div>
 
