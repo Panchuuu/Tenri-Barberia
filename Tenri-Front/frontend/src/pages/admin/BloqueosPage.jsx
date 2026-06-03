@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import toast from "react-hot-toast";
 import useApi from "../../hooks/useApi";
 import useApiMutation from "../../hooks/useApiMutation";
+import { parseApiErrorSync } from "../../utils/parseApiError";
 import PageHeader from "../../components/PageHeader";
 import ConfirmModal from "../../components/ConfirmModal";
 
@@ -33,7 +34,7 @@ export default function BloqueosPage() {
 
   const { data: bloqueos, cargando, refetch } = useApi("/bloqueos");
   const { data: barberos } = useApi("/mi-equipo");
-  const { ejecutar, cargando: guardando } = useApiMutation();
+  const { ejecutar, cargando: guardando, getLastError } = useApiMutation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,7 +49,7 @@ export default function BloqueosPage() {
       setForm(FORM_VACIO);
       refetch();
     } else {
-      toast.error("Error al crear el bloqueo");
+      toast.error(parseApiErrorSync(getLastError()?.body, "Error al crear el bloqueo"));
     }
   };
 
@@ -56,7 +57,7 @@ export default function BloqueosPage() {
     if (!confirmar) return;
     const r = await ejecutar(`/bloqueos/${confirmar}`, { method: "DELETE" });
     if (r) { toast.success("Bloqueo eliminado"); refetch(); }
-    else toast.error("No se pudo eliminar");
+    else toast.error(parseApiErrorSync(getLastError()?.body, "No se pudo eliminar el bloqueo"));
     setConfirmar(null);
   };
 
@@ -239,6 +240,7 @@ export default function BloqueosPage() {
 
       <ConfirmModal
         abierto={confirmar !== null}
+        cargando={guardando}
         titulo="Eliminar bloqueo"
         mensaje="¿Seguro que deseas eliminar este bloqueo? El barbero volverá a estar disponible en esas fechas."
         textoConfirmar="Sí, eliminar"

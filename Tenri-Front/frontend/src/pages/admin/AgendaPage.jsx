@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import toast from "react-hot-toast";
 import useApi from "../../hooks/useApi";
 import useApiMutation from "../../hooks/useApiMutation";
+import { parseApiErrorSync } from "../../utils/parseApiError";
 import PageHeader from "../../components/PageHeader";
 import { SearchIcon } from "../../components/Icons";
 
@@ -30,23 +31,26 @@ function StatCard({ titulo, valor, children }) {
   );
 }
 
-function AccionesCita({ cita, onEstado }) {
+function AccionesCita({ cita, onEstado, disabled = false }) {
   return (
     <div className="flex gap-3 flex-wrap">
       {cita.estado === "pendiente" && (
         <button onClick={() => onEstado(cita.id, "confirmada")}
-                className="text-emerald-600 dark:text-emerald-500 font-bold text-xs uppercase tracking-wider hover:underline">
+                disabled={disabled}
+                className="text-emerald-600 dark:text-emerald-500 font-bold text-xs uppercase tracking-wider hover:underline disabled:opacity-40 disabled:cursor-not-allowed">
           Confirmar
         </button>
       )}
       {cita.estado === "confirmada" && (
         <button onClick={() => onEstado(cita.id, "finalizada")}
-                className="text-cyan-600 dark:text-cyan-500 font-bold text-xs uppercase tracking-wider hover:underline">
+                disabled={disabled}
+                className="text-cyan-600 dark:text-cyan-500 font-bold text-xs uppercase tracking-wider hover:underline disabled:opacity-40 disabled:cursor-not-allowed">
           Finalizar
         </button>
       )}
       <button onClick={() => onEstado(cita.id, "cancelada")}
-              className="text-rose-600 dark:text-rose-500 font-bold text-xs uppercase tracking-wider hover:underline">
+              disabled={disabled}
+              className="text-rose-600 dark:text-rose-500 font-bold text-xs uppercase tracking-wider hover:underline disabled:opacity-40 disabled:cursor-not-allowed">
         Cancelar
       </button>
     </div>
@@ -118,7 +122,7 @@ export default function AgendaPage() {
   // Lista de barberos para el filtro
   const { data: barberos } = useApi("/mi-equipo");
 
-  const { ejecutar: cambiarEstado } = useApiMutation();
+  const { ejecutar: cambiarEstado, cargando: cambiandoEstado, getLastError } = useApiMutation();
 
   const citas      = citasData?.data || [];
   const paginacion = { actual: citasData?.current_page || 1, total: citasData?.last_page || 1 };
@@ -126,9 +130,10 @@ export default function AgendaPage() {
   const historial  = citas.filter((c) => c.estado === "finalizada" || c.estado === "cancelada");
 
   const handleEstado = async (id, nuevoEstado) => {
+    if (cambiandoEstado) return;
     const r = await cambiarEstado(`/citas/${id}/estado`, { method: "PATCH", body: { estado: nuevoEstado } });
     if (r) { toast.success(`Cita ${nuevoEstado}`); refetchCitas(); }
-    else toast.error("No se pudo actualizar");
+    else toast.error(parseApiErrorSync(getLastError()?.body, "No se pudo actualizar"));
   };
 
   const limpiarFiltros = () => {
@@ -295,7 +300,7 @@ export default function AgendaPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <AccionesCita cita={c} onEstado={handleEstado} />
+                        <AccionesCita cita={c} onEstado={handleEstado} disabled={cambiandoEstado} />
                       </td>
                     </tr>
                   ))}
@@ -320,7 +325,7 @@ export default function AgendaPage() {
                     </span>
                   </div>
                   <div className="pt-3 border-t border-slate-100 dark:border-slate-800/40">
-                    <AccionesCita cita={c} onEstado={handleEstado} />
+                    <AccionesCita cita={c} onEstado={handleEstado} disabled={cambiandoEstado} />
                   </div>
                 </div>
               ))}
