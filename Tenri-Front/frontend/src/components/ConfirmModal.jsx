@@ -3,9 +3,6 @@ import React from "react";
 // ============================================================
 // 🪟 CONFIRM MODAL — Modal de confirmación reutilizable
 // ============================================================
-// Antes este modal estaba duplicado en MisReservas y AdminDashboard.
-// Ahora vive en un solo lugar.
-// ============================================================
 
 export default function ConfirmModal({
   abierto,
