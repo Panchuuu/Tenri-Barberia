@@ -49,13 +49,13 @@ export default function ServiceCard({ servicio, onAgendar }) {
       </div>
 
       {/* CONTENIDO */}
-      <div className="p-6 flex flex-col flex-1">
+      <div className="p-4 flex flex-col flex-1">
         <h3 className="font-display text-xl font-semibold text-slate-900 dark:text-white leading-tight mb-2">
           {servicio.nombre}
         </h3>
 
         {servicio.descripcion && (
-          <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2 mb-5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2 mb-3">
             {servicio.descripcion}
           </p>
         )}
@@ -64,7 +64,7 @@ export default function ServiceCard({ servicio, onAgendar }) {
         <div className="mt-auto pt-5 border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Desde</p>
-            <p className="font-display text-2xl font-bold text-slate-900 dark:text-white tabular">{precioFmt}</p>
+            <p className="font-display text-xl font-bold text-slate-900 dark:text-white tabular">{precioFmt}</p>
           </div>
 
           <button
