@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreBarberiaRequest;
+use App\Http\Requests\UpdateBarberiaRequest;
 use App\Http\Requests\UpdateConfigBarberiaRequest;
 use App\Models\Barberia;
 use App\Models\Servicio;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class BarberiaController extends Controller
@@ -105,5 +107,54 @@ class BarberiaController extends Controller
             ->get();
 
         return response()->json($servicios);
+    }
+
+    /**
+     * Actualizar nombre, color y logo de una barbería (solo superadmin).
+     */
+    public function update(UpdateBarberiaRequest $request, $id)
+    {
+        $barberia = Barberia::findOrFail($id);
+
+        $barberia->nombre          = $request->nombre;
+        $barberia->color_principal = $request->color_principal;
+
+        // Logo: reemplazar si viene uno nuevo, conservar el actual si no.
+        if ($request->hasFile('logo')) {
+            // Eliminar logo anterior del disco si existe.
+            if ($barberia->logo && Storage::disk('public')->exists($barberia->logo)) {
+                Storage::disk('public')->delete($barberia->logo);
+            }
+            $barberia->logo = $request->file('logo')->store('logos_barberias', 'public');
+        }
+
+        $barberia->save();
+
+        return response()->json([
+            'mensaje'  => 'Barbería actualizada correctamente.',
+            'barberia' => $barberia,
+        ]);
+    }
+
+    /**
+     * Eliminar una barbería permanentemente (solo superadmin).
+     * Las FKs con cascadeOnDelete() limpian automáticamente:
+     * usuarios asignados, servicios, citas y bloqueos de esa barbería.
+     */
+    public function destroy($id)
+    {
+        $barberia = Barberia::findOrFail($id);
+        $nombre   = $barberia->nombre;
+
+        // Limpiar logo del disco antes del delete (evita archivo huérfano).
+        if ($barberia->logo && Storage::disk('public')->exists($barberia->logo)) {
+            Storage::disk('public')->delete($barberia->logo);
+        }
+
+        $barberia->delete();
+
+        return response()->json([
+            'mensaje' => "Barbería '{$nombre}' eliminada permanentemente junto con sus servicios, citas y personal asignado.",
+        ]);
     }
 }

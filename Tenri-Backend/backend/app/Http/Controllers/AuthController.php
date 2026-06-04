@@ -37,6 +37,13 @@ class AuthController extends Controller
             return response()->json(['message' => 'Credenciales incorrectas'], 401);
         }
 
+        // 🎯 Pack 3: rechazar login de usuarios suspendidos.
+        if ($user->suspendido) {
+            return response()->json([
+                'message' => 'Tu cuenta está suspendida. Contacta al administrador.',
+            ], 403);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
