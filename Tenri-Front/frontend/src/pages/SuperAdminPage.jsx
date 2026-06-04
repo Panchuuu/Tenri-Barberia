@@ -4,7 +4,10 @@ import useApi from "../hooks/useApi";
 import useApiMutation from "../hooks/useApiMutation";
 import PageHeader from "../components/PageHeader";
 import CharacterCounter from "../components/CharacterCounter";
+import ConfirmModal from "../components/ConfirmModal";
 import { parseApiErrorSync } from "../utils/parseApiError";
+import UsuariosTab from "../components/UsuariosTab";
+import EditarBarberiaModal from "../components/EditarBarberiaModal";
 
 const FORM_VACIO = {
   nombre_barberia: "",
@@ -24,6 +27,17 @@ export default function SuperAdminPage() {
 
   const { ejecutar, cargando, getLastError } = useApiMutation();
   const barberias = barberiasData || [];
+
+  // 🎯 Pack 3: tab activa + datos de usuarios
+  const [tabActiva, setTabActiva] = useState("negocios");
+  const [editandoBarberia,          setEditandoBarberia]          = useState(null);
+  const [confirmarEliminarBarberia, setConfirmarEliminarBarberia] = useState(null);
+  const { ejecutar: ejecutarBarberia, cargando: eliminando } = useApiMutation();
+  const {
+    data: usuariosData,
+    cargando: cargandoUsuarios,
+    refetch: refetchUsuarios,
+  } = useApi("/superadmin/usuarios");
 
   const handleCrear = async (e) => {
     e.preventDefault();
@@ -54,15 +68,66 @@ export default function SuperAdminPage() {
     }
   };
 
+  const handleEliminarBarberia = async () => {
+    if (!confirmarEliminarBarberia || eliminando) return;
+    const r = await ejecutarBarberia(
+      `/barberias/${confirmarEliminarBarberia.id}`,
+      { method: "DELETE" }
+    );
+    if (r) {
+      toast.success(r.mensaje || "Barbería eliminada");
+      setConfirmarEliminarBarberia(null);
+      refetch();
+    } else {
+      toast.error(parseApiErrorSync(getLastError()?.body, "No se pudo eliminar la barbería"));
+      setConfirmarEliminarBarberia(null);
+    }
+  };
+
   return (
     <div>
       <PageHeader
         tag="Tenri Master"
-        titulo="Red de negocios"
-        subtitulo="Administra los inquilinos (tenants) suscritos a TENRI SPA"
+        titulo={tabActiva === "negocios" ? "Red de negocios" : "Usuarios"}
+        subtitulo={tabActiva === "negocios"
+          ? "Administra los inquilinos (tenants) suscritos a TENRI SPA"
+          : "Gestiona cuentas, roles y accesos del sistema"}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+      {/* 🎯 Pack 3: selector de tabs */}
+      <div className="flex gap-2 mt-4 mb-6 border-b border-slate-200 dark:border-slate-800">
+        <button
+          onClick={() => setTabActiva("negocios")}
+          className={`pb-3 px-1 text-sm font-semibold transition-colors border-b-2 -mb-px ${
+            tabActiva === "negocios"
+              ? "border-amber-500 text-amber-500"
+              : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          🏢 Red de Negocios
+        </button>
+        <button
+          onClick={() => setTabActiva("usuarios")}
+          className={`pb-3 px-1 text-sm font-semibold transition-colors border-b-2 -mb-px ${
+            tabActiva === "usuarios"
+              ? "border-amber-500 text-amber-500"
+              : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          👥 Usuarios
+        </button>
+      </div>
+
+      {tabActiva === "usuarios" && (
+      <UsuariosTab
+        usuarios={usuariosData?.data || usuariosData || []}
+        cargando={cargandoUsuarios}
+        onRefetch={refetchUsuarios}
+      />
+    )}
+
+    {tabActiva === "negocios" && (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
 
         {/* FORMULARIO DE CREACIÓN */}
         <div className="lg:col-span-5 bg-white dark:bg-[#0B1221] border border-slate-200 dark:border-amber-900/30 rounded-2xl p-6 h-fit shadow-sm relative overflow-hidden">
@@ -185,6 +250,7 @@ export default function SuperAdminPage() {
                       <th className="px-5 py-4">Empresa</th>
                       <th className="px-5 py-4">Slug</th>
                       <th className="px-5 py-4 text-right">Color</th>
+                      <th className="px-5 py-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
@@ -215,6 +281,20 @@ export default function SuperAdminPage() {
                           >
                             {b.color_principal}
                           </span>
+                        </td>
+                        <td className="px-5 py-4 text-right space-x-4">
+                          <button
+                            onClick={() => setEditandoBarberia(b)}
+                            className="text-cyan-600 dark:text-cyan-500 text-xs font-bold uppercase tracking-wider hover:underline"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => setConfirmarEliminarBarberia(b)}
+                            className="text-rose-600 dark:text-rose-500 text-xs font-bold uppercase tracking-wider hover:underline"
+                          >
+                            Eliminar
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -249,6 +329,20 @@ export default function SuperAdminPage() {
                       >
                         {b.color_principal}
                       </span>
+                      <div className="flex gap-4 mt-2">
+                        <button
+                          onClick={() => setEditandoBarberia(b)}
+                          className="text-cyan-600 dark:text-cyan-500 text-xs font-bold uppercase tracking-wider hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => setConfirmarEliminarBarberia(b)}
+                          className="text-rose-600 dark:text-rose-500 text-xs font-bold uppercase tracking-wider hover:underline"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -257,6 +351,28 @@ export default function SuperAdminPage() {
           )}
         </div>
       </div>
+    )}
+
+    {/* ── Modales del CRUD de barberías ── */}
+    <EditarBarberiaModal
+      barberia={editandoBarberia}
+      onClose={() => setEditandoBarberia(null)}
+      onGuardado={refetch}
+    />
+
+    <ConfirmModal
+      abierto={confirmarEliminarBarberia !== null}
+      cargando={eliminando}
+      titulo="Eliminar barbería"
+      mensaje={confirmarEliminarBarberia
+        ? `¿Seguro que deseas eliminar "${confirmarEliminarBarberia.nombre}"? Se eliminarán todos sus servicios, citas, barberos y datos asociados. Esta acción no se puede deshacer.`
+        : ""}
+      textoConfirmar="Sí, eliminar todo"
+      variante="danger"
+      onConfirmar={handleEliminarBarberia}
+      onCancelar={() => setConfirmarEliminarBarberia(null)}
+    />
+
     </div>
   );
 }

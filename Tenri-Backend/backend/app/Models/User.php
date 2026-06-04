@@ -16,6 +16,8 @@ class User extends Authenticatable
         'email',
         'password',
         'rol',
+        // 🎯 Pack 3: campo de suspensión de cuenta
+        'suspendido',
         'avatar',
         'barberia_id',
         'hora_inicio',
@@ -34,6 +36,8 @@ class User extends Authenticatable
         'password'               => 'hashed',
         'promedio_calificacion'  => 'decimal:2',
         'total_resenas'          => 'integer',
+        // 🎯 Pack 3: para devolver true/false al frontend (no 0/1)
+        'suspendido'             => 'boolean',
     ];
 
     // Siempre exponer avatar_url en la respuesta JSON

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BarberiaController;
+use App\Http\Controllers\SuperAdminUsuarioController;
 use App\Http\Controllers\BarberoController;
 use App\Http\Controllers\BloqueoHorarioController;
 use App\Http\Controllers\CitaController;
@@ -33,7 +34,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // 👑 SUPERADMIN
     Route::middleware('role:superadmin')->group(function () {
-        Route::post('/barberias', [BarberiaController::class, 'store']);
+        Route::post  ('/barberias',      [BarberiaController::class, 'store']);
+        Route::post  ('/barberias/{id}', [BarberiaController::class, 'update']); // multipart
+        Route::put   ('/barberias/{id}', [BarberiaController::class, 'update']); // JSON
+        Route::delete('/barberias/{id}', [BarberiaController::class, 'destroy']);
+
+        // 🎯 Pack 3: CRUD de usuarios para superadmin
+        Route::get   ('/superadmin/usuarios',                [SuperAdminUsuarioController::class, 'index']);
+        Route::patch ('/superadmin/usuarios/{id}/rol',       [SuperAdminUsuarioController::class, 'cambiarRol']);
+        Route::patch ('/superadmin/usuarios/{id}/suspender', [SuperAdminUsuarioController::class, 'toggleSuspendido']);
+        Route::delete('/superadmin/usuarios/{id}',           [SuperAdminUsuarioController::class, 'destroy']);
     });
 
     // ⚙️ ADMIN
