@@ -10,7 +10,9 @@ import ImageUploader from "../../components/ImageUploader";
 import { parseApiErrorSync } from "../../utils/parseApiError";
 
 const FORM_VACIO = {
-  nombre: "", precio: "", duracion: "", descripcion: "", imagen_archivo: null,
+  nombre: "", precio: "", duracion: "", descripcion: "",
+  imagen_archivo: null,
+  imagen_url: null, // 🔧 Deuda G: preview al editar servicio con imagen
 };
 
 export default function ServiciosPage() {
@@ -61,6 +63,7 @@ export default function ServiciosPage() {
                   : "",
       descripcion: s.descripcion || "",
       imagen_archivo: null,
+      imagen_url: s.imagen_url || null, // 🔧 Deuda G: hidrata preview
     });
     // Scroll suave hacia el form en mobile
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -159,7 +162,7 @@ export default function ServiciosPage() {
             <ImageUploader
               label="Foto (opcional)"
               shape="square"
-              previewActual={null}
+              previewActual={form.imagen_url}
               onChange={(file) => setForm({ ...form, imagen_archivo: file })}
             />
 
