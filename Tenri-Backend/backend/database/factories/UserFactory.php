@@ -42,4 +42,45 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    // ── States por rol ──────────────────────────────────────
+
+    public function superadmin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'rol' => 'superadmin',
+        ]);
+    }
+
+    public function admin(?int $barberiaId = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'rol'         => 'admin',
+            'barberia_id' => $barberiaId,
+        ]);
+    }
+
+    public function barbero(?int $barberiaId = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'rol'         => 'barbero',
+            'barberia_id' => $barberiaId,
+            'hora_inicio' => '09:00',
+            'hora_fin'    => '18:00',
+        ]);
+    }
+
+    public function cliente(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'rol' => 'cliente',
+        ]);
+    }
+
+    public function suspendido(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'suspendido' => true,
+        ]);
+    }
 }
