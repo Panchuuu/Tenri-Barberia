@@ -138,19 +138,18 @@ class BarberoController extends Controller
                 $cita->save();
                 $cantidadCanceladas++;
 
-                // 🎯 Pack 2/Queues: email encolado con afterCommit() para garantizar
-                // que solo se envía si la transacción se committeó exitosamente.
-                // Si la transacción hace rollback, el job no se encola.
-                // $erroresEmail ya no cuenta envíos reales (con queue los errores
-                // van a failed_jobs, no son capturables aquí síncronamente).
+                // 📧 Email síncrono al cliente (compat MySQL/cPanel sin queue worker).
+                // Si falla SMTP, capturamos para no romper la transacción.
+                // Nota: el envío ocurre DENTRO de la transacción; si el rollback
+                // ocurriera después, el mail ya estaría enviado. Aceptamos el
+                // trade-off por simplicidad de deploy en hosting compartido.
                 try {
                     if ($cita->cliente && $cita->cliente->email) {
-                        Mail::to($cita->cliente->email)
-                            ->queue((new CitaCanceladaMail($cita))->afterCommit());
+                        Mail::to($cita->cliente->email)->send(new CitaCanceladaMail($cita));
                     }
                 } catch (\Throwable $e) {
-                    // Solo captura errores de encolado (raro), no de envío real.
-                    \Log::warning("Error al encolar email cita #{$cita->id}: " . $e->getMessage());
+                    $erroresEmail++;
+                    \Log::warning("Error al enviar email cita #{$cita->id}: " . $e->getMessage());
                 }
             }
 
