@@ -1,0 +1,30 @@
+name: Deploy — Producción
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy a servidor vía SSH
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASS }}
+          port:     ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            cd ~/domains/api.tenri.cl
+            git pull origin main
+            cd Tenri-Backend/backend
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            echo "✅ Deploy completado en $(date)"
