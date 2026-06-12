@@ -26,8 +26,8 @@ class SuperAdminUsuarioController extends Controller
         // Búsqueda por nombre o email
         if ($request->filled('buscar')) {
             $query->where(function ($q) use ($request) {
-                $q->where('name',  'ilike', '%'.$request->buscar.'%')
-                  ->orWhere('email', 'ilike', '%'.$request->buscar.'%');
+                $q->where('name',  'like', '%'.$request->buscar.'%')
+                  ->orWhere('email', 'like', '%'.$request->buscar.'%');
             });
         }
 
