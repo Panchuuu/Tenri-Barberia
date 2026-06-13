@@ -20,7 +20,11 @@ jobs:
           script: |
             set -e
             cd ~/domains/api.tenri.cl
-            git pull origin main
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/Panchuuu/Tenri-Barberia.git .
+            else
+              git pull origin main
+            fi
             cd Tenri-Backend/backend
             composer install --no-dev --optimize-autoloader
             php artisan migrate --force
