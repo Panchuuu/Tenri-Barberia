@@ -19,16 +19,21 @@ jobs:
           port:     ${{ secrets.SSH_PORT }}
           script: |
             set -e
-            cd ~/domains/api.tenri.cl
+            # Clonar/actualizar el repo en carpeta segura (fuera del webroot)
+            mkdir -p ~/apps/booking-tenri
+            cd ~/apps/booking-tenri
             if [ ! -d ".git" ]; then
               git clone https://github.com/Panchuuu/Tenri-Barberia.git .
             else
               git pull origin main
             fi
-            cd Tenri-Backend/backend
+
+            # Deploy del backend Laravel
+            cd ~/apps/booking-tenri/Tenri-Backend/backend
             composer install --no-dev --optimize-autoloader
             php artisan migrate --force
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
+
             echo "✅ Deploy completado en $(date)"
