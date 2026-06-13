@@ -1,39 +1,206 @@
-name: Deploy — Producción
+name: CI/CD — Tenri Booking
 
 on:
   push:
-    branches: [ main ]
+    branches: ["**"]
+  pull_request:
+    branches: [main]
 
 jobs:
-  deploy:
-    name: Deploy a servidor vía SSH
+  # ══════════════════════════════════════════════
+  # JOB 1 — TESTS BACKEND PHP
+  # ══════════════════════════════════════════════
+  test-backend:
+    name: 🧪 Tests Backend (PHP)
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: Tenri-Backend/backend
+
     steps:
-      - name: Deploy via SSH
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: pdo, pdo_sqlite, sqlite3, mbstring, bcmath, tokenizer, xml, ctype, json
+          coverage: none
+
+      - name: 📦 Instalar dependencias
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: 🔧 Preparar .env para testing
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: 🧪 Correr tests
+        run: php artisan test --testsuite=Feature --stop-on-failure
+
+  # ══════════════════════════════════════════════
+  # JOB 2 — TESTS FRONTEND (lint + build)
+  # ══════════════════════════════════════════════
+  test-frontend:
+    name: 🧪 Tests Frontend (lint + build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Tenri-Front/frontend
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 📦 Instalar pnpm
+        run: npm install -g pnpm
+
+      - name: 📦 Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: 🔍 Lint
+        run: pnpm lint
+
+      - name: 🏗️ Build
+        env:
+          VITE_API_URL: https://booking.tenri.cl/api
+        run: pnpm build
+
+  # ══════════════════════════════════════════════
+  # JOB 3 — DEPLOY (solo main + ambos tests OK)
+  # ══════════════════════════════════════════════
+  deploy:
+    name: 🚀 Deploy a producción
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      # ── Frontend: build ──────────────────────
+      - name: ⚙️ Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 📦 Instalar pnpm
+        run: npm install -g pnpm
+
+      - name: 📦 Instalar dependencias frontend
+        working-directory: Tenri-Front/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build frontend
+        working-directory: Tenri-Front/frontend
+        env:
+          VITE_API_URL: https://booking.tenri.cl/api
+        run: pnpm build
+
+      # ── Backend: preparar zip ─────────────────
+      - name: ⚙️ Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring, pdo_mysql, zip, bcmath, tokenizer, xml, ctype, json
+
+      - name: 📦 Instalar dependencias backend
+        working-directory: Tenri-Backend/backend
+        run: composer install --optimize-autoloader --no-dev --no-interaction
+
+      - name: 🗜️ Comprimir backend
+        working-directory: Tenri-Backend/backend
+        run: |
+          zip -r ../../backend.zip . \
+            -x "*.git*" \
+            -x "tests/*" \
+            -x "node_modules/*" \
+            -x ".env*" \
+            -x "storage/logs/*" \
+            -x "storage/framework/cache/*" \
+            -x "storage/framework/sessions/*" \
+            -x "storage/framework/views/*"
+
+      # ── Subir frontend ────────────────────────
+      - name: 🚀 Subir frontend a public_html
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "Tenri-Front/frontend/dist/*"
+          target: "domains/booking.tenri.cl/public_html"
+          strip_components: 3
+
+      # ── Subir backend comprimido ──────────────
+      - name: 🚀 Subir backend comprimido
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "backend.zip"
+          target: "booking_backend"
+
+      # ── Configurar en servidor ────────────────
+      - name: 🛠️ Descomprimir y configurar Laravel
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:     ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          password: ${{ secrets.SSH_PASS }}
-          port:     ${{ secrets.SSH_PORT }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
             set -e
-            # Clonar/actualizar el repo en carpeta segura (fuera del webroot)
-            mkdir -p ~/apps/booking-tenri
-            cd ~/apps/booking-tenri
-            if [ ! -d ".git" ]; then
-              git clone https://github.com/Panchuuu/Tenri-Barberia.git .
-            else
-              git pull origin main
+
+            LARAVEL_ROOT=~/booking_backend
+
+            # Crear carpeta si no existe (primer deploy)
+            mkdir -p $LARAVEL_ROOT
+
+            # Descomprimir backend (sobreescribe archivos existentes)
+            cd $LARAVEL_ROOT
+            unzip -o ~/booking_backend/backend.zip
+            rm -f ~/booking_backend/backend.zip
+
+            # Permisos de storage
+            chmod -R 775 storage bootstrap/cache
+            mkdir -p storage/framework/sessions
+            mkdir -p storage/framework/views
+            mkdir -p storage/framework/cache
+            mkdir -p storage/logs
+
+            # Validar que .env existe y es de producción
+            if [ ! -f ".env" ]; then
+              echo "ERROR: .env no existe en $LARAVEL_ROOT. Créalo manualmente." >&2
+              exit 1
+            fi
+            if ! grep -qE "^APP_DEBUG=false" .env; then
+              echo "ERROR: APP_DEBUG debe ser false en producción." >&2
+              exit 1
+            fi
+            if ! grep -qE "^APP_ENV=production" .env; then
+              echo "ERROR: APP_ENV debe ser production." >&2
+              exit 1
             fi
 
-            # Deploy del backend Laravel
-            cd ~/apps/booking-tenri/Tenri-Backend/backend
-            composer install --no-dev --optimize-autoloader
+            # Artisan
+            php artisan optimize:clear
             php artisan migrate --force
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
+            php artisan storage:link --force 2>/dev/null || true
 
             echo "✅ Deploy completado en $(date)"
