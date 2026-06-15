@@ -62,6 +62,7 @@ export default function AdminLayout() {
           </div>
 
           <nav className="p-4 space-y-1 mt-2 text-sm font-medium">
+            {/* eslint-disable-next-line no-unused-vars */}
             {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}

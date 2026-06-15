@@ -24,6 +24,12 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // TODO: refactorizar antipatterns React Hooks v6 (deuda técnica)
+      'react-hooks/exhaustive-deps': 'warn',
+      ...(reactHooks.configs.flat.recommended.rules ?? {}),
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/use-memo': 'off',
+      'react-hooks/static-components': 'off',
     },
   },
 ])

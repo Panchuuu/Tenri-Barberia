@@ -63,7 +63,7 @@ const apiFetch = async (endpoint, options = {}) => {
 export const apiLogout = async () => {
   try {
     await apiFetch("/logout", { method: "POST" });
-  } catch (_) {
+  } catch {
     // Si falla la red, igual limpiamos local
   } finally {
     localStorage.removeItem("token");

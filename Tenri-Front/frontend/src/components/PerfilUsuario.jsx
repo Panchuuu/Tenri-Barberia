@@ -66,7 +66,7 @@ export default function PerfilUsuario({ usuario, setUsuario }) {
         const errores = await res.json();
         toast.error(errores.message || "Error al actualizar");
       }
-    } catch (error) {
+    } catch {
       toast.error("Error de conexión");
     } finally {
       setCargando(false);

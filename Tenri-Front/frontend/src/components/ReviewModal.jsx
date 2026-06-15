@@ -33,7 +33,7 @@ export default function ReviewModal({ cita, onClose, onReviewSuccess }) {
       } else {
         toast.error(data.error || "Ocurrió un error al enviar tu reseña");
       }
-    } catch (error) {
+    } catch {
       toast.error("Error de conexión");
     } finally {
       setEnviando(false);

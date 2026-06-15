@@ -112,6 +112,7 @@ export function AuthProvider({ children }) {
  * Hook para consumir el contexto.
  *   const { usuario, login, esAdmin } = useAuth();
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) {

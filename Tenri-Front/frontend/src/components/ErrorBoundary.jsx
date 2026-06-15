@@ -48,7 +48,7 @@ export default class ErrorBoundary extends React.Component {
             Ocurrió un error inesperado. Por favor, recarga la página.
           </p>
 
-          {process.env.NODE_ENV === "development" && this.state.error && (
+          {import.meta.env.DEV && this.state.error && (
             <pre className="text-left text-xs bg-slate-100 dark:bg-[#03070e] p-4 rounded-lg mb-6 overflow-auto max-h-40 text-rose-600 dark:text-rose-400">
               {this.state.error.message}
             </pre>
