@@ -130,6 +130,18 @@ jobs:
             -x "storage/framework/sessions/*" \
             -x "storage/framework/views/*"
 
+      # ── Debug SSH ─────────────────────────────
+      - name: 🔍 Debug SSH connection
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          debug: true
+          script: echo "SSH OK"
+        continue-on-error: true
+
       # ── Subir frontend ────────────────────────
       - name: 🚀 Subir frontend a public_html
         uses: appleboy/scp-action@v0.1.7
