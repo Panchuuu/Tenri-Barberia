@@ -106,15 +106,20 @@ jobs:
           VITE_API_URL: https://booking.tenri.cl/api
         run: pnpm build
 
-      # ── Notificar al servidor via webhook ─────
+      # ── Comprimir frontend build ──────────────
+      - name: 🗜️ Comprimir dist
+        run: |
+          cd Tenri-Front/frontend
+          tar -czf ../../frontend-dist.tar.gz dist/
+
+      # ── Subir dist + trigger deploy ───────────
       - name: 🚀 Trigger deploy webhook
         run: |
-          echo "Enviando webhook a booking.tenri.cl..."
+          echo "Enviando frontend build al servidor..."
           RESPONSE=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
             -X POST \
             -H "X-Deploy-Secret: ${{ secrets.DEPLOY_SECRET }}" \
-            -H "Content-Type: application/json" \
-            -d '{"ref":"refs/heads/main"}' \
+            -F "frontend=@frontend-dist.tar.gz" \
             https://booking.tenri.cl/deploy.php)
 
           echo "HTTP Status: $RESPONSE"
