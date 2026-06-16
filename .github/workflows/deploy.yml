@@ -106,113 +106,24 @@ jobs:
           VITE_API_URL: https://booking.tenri.cl/api
         run: pnpm build
 
-      # ── Backend: preparar zip ─────────────────
-      - name: ⚙️ Setup PHP 8.2
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.2"
-          extensions: mbstring, pdo_mysql, zip, bcmath, tokenizer, xml, ctype, json
-
-      - name: 📦 Instalar dependencias backend
-        working-directory: Tenri-Backend/backend
-        run: composer install --optimize-autoloader --no-dev --no-interaction
-
-      - name: 🗜️ Comprimir backend
-        working-directory: Tenri-Backend/backend
+      # ── Notificar al servidor via webhook ─────
+      - name: 🚀 Trigger deploy webhook
         run: |
-          zip -r ../../backend.zip . \
-            -x "*.git*" \
-            -x "tests/*" \
-            -x "node_modules/*" \
-            -x ".env*" \
-            -x "storage/logs/*" \
-            -x "storage/framework/cache/*" \
-            -x "storage/framework/sessions/*" \
-            -x "storage/framework/views/*"
+          echo "Enviando webhook a booking.tenri.cl..."
+          RESPONSE=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
+            -X POST \
+            -H "X-Deploy-Secret: ${{ secrets.DEPLOY_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"ref":"refs/heads/main"}' \
+            https://booking.tenri.cl/deploy.php)
 
-      # ── Debug SSH ─────────────────────────────
-      - name: 🔍 Debug SSH connection
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          debug: true
-          script: echo "SSH OK"
-        continue-on-error: true
+          echo "HTTP Status: $RESPONSE"
+          echo "Response body:"
+          cat /tmp/deploy_response.txt
 
-      # ── Subir frontend ────────────────────────
-      - name: 🚀 Subir frontend a public_html
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          source: "Tenri-Front/frontend/dist/*"
-          target: "domains/booking.tenri.cl/public_html"
-          strip_components: 3
+          if [ "$RESPONSE" != "200" ]; then
+            echo "❌ Deploy webhook falló con status $RESPONSE"
+            exit 1
+          fi
 
-      # ── Subir backend comprimido ──────────────
-      - name: 🚀 Subir backend comprimido
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          source: "backend.zip"
-          target: "booking_backend"
-
-      # ── Configurar en servidor ────────────────
-      - name: 🛠️ Descomprimir y configurar Laravel
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            set -e
-
-            LARAVEL_ROOT=~/booking_backend
-
-            # Crear carpeta si no existe (primer deploy)
-            mkdir -p $LARAVEL_ROOT
-
-            # Descomprimir backend (sobreescribe archivos existentes)
-            cd $LARAVEL_ROOT
-            unzip -o ~/booking_backend/backend.zip
-            rm -f ~/booking_backend/backend.zip
-
-            # Permisos de storage
-            chmod -R 775 storage bootstrap/cache
-            mkdir -p storage/framework/sessions
-            mkdir -p storage/framework/views
-            mkdir -p storage/framework/cache
-            mkdir -p storage/logs
-
-            # Validar que .env existe y es de producción
-            if [ ! -f ".env" ]; then
-              echo "ERROR: .env no existe en $LARAVEL_ROOT. Créalo manualmente." >&2
-              exit 1
-            fi
-            if ! grep -qE "^APP_DEBUG=false" .env; then
-              echo "ERROR: APP_DEBUG debe ser false en producción." >&2
-              exit 1
-            fi
-            if ! grep -qE "^APP_ENV=production" .env; then
-              echo "ERROR: APP_ENV debe ser production." >&2
-              exit 1
-            fi
-
-            # Artisan
-            php artisan optimize:clear
-            php artisan migrate --force
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
-            php artisan storage:link --force 2>/dev/null || true
-
-            echo "✅ Deploy completado en $(date)"
+          echo "✅ Deploy completado exitosamente"
