@@ -117,6 +117,7 @@ jobs:
         run: |
           echo "Enviando frontend build al servidor..."
           RESPONSE=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
+            --max-time 300 \
             -X POST \
             -H "X-Deploy-Secret: ${{ secrets.DEPLOY_SECRET }}" \
             -F "frontend=@frontend-dist.tar.gz" \
