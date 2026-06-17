@@ -106,15 +106,13 @@ jobs:
           pnpm build
 
       - name: 🚀 Subir frontend a public_html
-        uses: appleboy/scp-action@v0.1.7
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          source: "Tenri-Front/frontend/dist/*"
-          target: "domains/booking.tenri.cl/public_html"
-          strip_components: 3
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: Tenri-Front/frontend/dist/
+          server-dir: domains/booking.tenri.cl/public_html/
 
       # ── Backend ───────────────────────────────
       - name: ⚙️ Setup PHP 8.2
@@ -142,14 +140,14 @@ jobs:
             -x "storage/framework/views/*"
 
       - name: 🚀 Subir backend comprimido
-        uses: appleboy/scp-action@v0.1.7
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          source: "backend.zip"
-          target: "booking_backend"
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
+          server-dir: booking_backend/
+          include: backend.zip
 
       # ── Servidor ──────────────────────────────
       - name: 🛠️ Descomprimir y configurar Laravel
