@@ -128,8 +128,9 @@ jobs:
 
       - name: 🗜️ Comprimir backend
         run: |
+          mkdir -p _deploy
           cd Tenri-Backend/backend
-          zip -r ../../backend.zip . \
+          zip -r ../../_deploy/backend.zip . \
             -x "*.git*" \
             -x "tests/*" \
             -x "node_modules/*" \
@@ -145,9 +146,8 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME_ROOT }}
           password: ${{ secrets.FTP_PASSWORD_ROOT }}
-          local-dir: ./
+          local-dir: ./_deploy/
           server-dir: booking_backend/
-          include: backend.zip
 
       # ── Servidor ──────────────────────────────
       - name: 🛠️ Descomprimir y configurar Laravel
