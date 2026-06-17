@@ -105,14 +105,14 @@ jobs:
           cd Tenri-Front/frontend
           pnpm build
 
-      - name: 🚀 Subir frontend a public_html
+      - name: 🚀 Subir frontend a public_html (FTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: Tenri-Front/frontend/dist/
-          server-dir: domains/booking.tenri.cl/public_html/
+          server-dir: ./
 
       # ── Backend ───────────────────────────────
       - name: ⚙️ Setup PHP 8.2
@@ -139,12 +139,12 @@ jobs:
             -x "storage/framework/sessions/*" \
             -x "storage/framework/views/*"
 
-      - name: 🚀 Subir backend comprimido
+      - name: 🚀 Subir backend comprimido (FTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
+          username: ${{ secrets.FTP_USERNAME_ROOT }}
+          password: ${{ secrets.FTP_PASSWORD_ROOT }}
           local-dir: ./
           server-dir: booking_backend/
           include: backend.zip
