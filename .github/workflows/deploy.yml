@@ -149,43 +149,12 @@ jobs:
           local-dir: ./_deploy/
           server-dir: booking_backend/
 
-      # ── Servidor ──────────────────────────────
-      - name: 🛠️ Descomprimir y configurar Laravel
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            set -e
-
-            LARAVEL_ROOT=~/booking_backend
-
-            cd $LARAVEL_ROOT
-            unzip -o backend.zip
-            rm -f backend.zip
-
-            chmod -R 775 storage bootstrap/cache
-            mkdir -p storage/framework/sessions
-            mkdir -p storage/framework/views
-            mkdir -p storage/framework/cache
-            mkdir -p storage/logs
-
-            if ! grep -qE "^APP_DEBUG=false" .env; then
-              echo "ERROR: APP_DEBUG debe ser false en producción." >&2
-              exit 1
-            fi
-            if ! grep -qE "^APP_ENV=production" .env; then
-              echo "ERROR: APP_ENV debe ser production." >&2
-              exit 1
-            fi
-
-            php artisan optimize:clear
-            php artisan migrate --force
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
-            php artisan storage:link --force 2>/dev/null || true
-
-            echo "✅ Deploy completado en $(date)"
+      # ── Notificar deploy completado ───────────
+      - name: ✅ Deploy de archivos completado
+        run: |
+          echo "✅ Frontend y backend subidos via FTP"
+          echo "⚠️ Ejecuta los comandos artisan en el servidor:"
+          echo "   cd ~/booking_backend"
+          echo "   unzip -o backend.zip && rm backend.zip"
+          echo "   cd Tenri-Backend/backend"
+          echo "   php artisan migrate --force && php artisan optimize:clear"
